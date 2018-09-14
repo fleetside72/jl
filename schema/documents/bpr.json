@@ -1,22 +1,26 @@
 {
-    "gl": [
-        {
-            "jpath": [
+    "gl": {
+        "lines": [
+            {
+                "amount": 2.19,
+                "account": "h.food"
+            },
+            {
+                "amount": -2.19,
+                "account": "h.dcard"
+            }
+        ],
+        "jpath": [
+            [
                 "{item,0}",
                 "{header}"
             ],
-            "amount": 2.19,
-            "account": "h.food"
-        },
-        {
-            "jpath": [
+            [
                 "{item,0}",
                 "{header}"
-            ],
-            "amount": -2.19,
-            "account": "h.dcard"
-        }
-    ],
+            ]
+        ]
+    },
     "item": [
         {
             "item": "green olives",
@@ -29,11 +33,6 @@
         "entity": "home",
         "module": "MHI",
         "offset": "h.dcard",
-        "vendor": "Discount Drug Mart",
-        "currency": "USD",
-        "eff_date": "1/6/2018",
-        "location": "Stow, OH",
-        "instrument": "Discover Card",
         "transaction": "purchase"
     }
 }
