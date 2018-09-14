@@ -1,16 +1,52 @@
---------------------------balances----------------------------------------------------
 
-CREATE TABLE evt.bal (
-    acct TEXT REFERENCES evt.acct(acct)
-    ,perd daterange
-    ,obal numeric(12,2)
-    ,debits numeric(12,2)
-    ,credits numeric(12,2)
-    ,cbal numeric(12,2)
-);
-COMMENT ON COLUMN evt.bal.acct IS 'account';
-COMMENT ON COLUMN evt.bal.perd IS 'period';
-COMMENT ON COLUMN evt.bal.obal IS 'opening balance';
-COMMENT ON COLUMN evt.bal.debits IS 'total debits';
-COMMENT ON COLUMN evt.bal.credits IS 'total credits';
-COMMENT ON COLUMN evt.bal.cbal IS 'closing balance';
+WITH
+    NEW as (
+        SELECT $${
+    "gl": {
+        "lines": [
+            {
+                "amount": 2.19,
+                "account": "h.food"
+            },
+            {
+                "amount": -2.19,
+                "account": "h.dcard"
+            }
+        ],
+        "jpath": [
+            [
+                "{item,0}",
+                "{header}"
+            ],
+            [
+                "{item,0}",
+                "{header}"
+            ]
+        ]
+    },
+    "item": [
+        {
+            "item": "green olives",
+            "amount": 2.19,
+            "reason": "food",
+            "account": "h.food"
+        }
+    ],
+    "header": {
+        "entity": "home",
+        "module": "MHI",
+        "offset": "h.dcard",
+        "transaction": "purchase"
+    }
+}$$::jsonb bpr
+    )
+SELECT
+    *
+FROM
+    NEW
+    --gl array hold each gl line
+    LEFT JOIN LATERAL JSONB_ARRAY_ELEMENTS(NEW.bpr->'gl') WITH ORDINALITY gl(i, rn) ON TRUE
+    --eaxpand the array of gl lines
+    LEFT JOIN LATERAL JSONB_ARRAY_ELEMENTS(gl.i->'lines') WITH ORDINALITY a(i, rn) ON TRUE
+    --for each
+    LEFT JOIN LATERAL JSONB_ARRAY_ELEMENTS(gl.i->'jpath') WITH ORDINALITY p(i, rn) ON TRUE
