@@ -5,7 +5,8 @@ CREATE TABLE evt.gl (
     ,bpr_id INT REFERENCES evt.bpr (id)
     ,acct text REFERENCES evt.acct (acct)
     ,amount numeric (12,2)
-    ,bpr jsonb
+    ,gl_line INT
+    ,bpr_extract JSONB
 );
 COMMENT ON COLUMN evt.gl.bpr_id IS 'id of initial basic pecuniary record';
 COMMENT ON COLUMN evt.gl.acct IS 'account code';
