@@ -3,7 +3,7 @@
 CREATE TABLE evt.gl (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
     ,bprid INT REFERENCES evt.bpr (id)
-    ,acct text REFERENCES evt.acct (acct)
+    ,account text REFERENCES evt.acct (acct)
     ,amount numeric (12,2)
     ,glline INT
     ,bprkeys JSONB
