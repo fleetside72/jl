@@ -1,5 +1,5 @@
 
-CREATE FUNCTION log_insert() RETURNS trigger
+CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS 
     $func$
@@ -75,23 +75,33 @@ CREATE FUNCTION log_insert() RETURNS trigger
     --select * from full_ex
     --------------------------------re-ggregate extraction to gl line level----------------------
     ,ex_gl_line AS (
-    SELECT 
-        id
-        ,gl_line->>'account' account
-        ,(gl_line->>'amount')::numeric amount
-        ,gl_rownum
-        --aggregate all the path references back to the gl line
-        ,public.jsonb_concat(bpr_extract) bprkeys
-    FROM 
-        full_ex
-    GROUP BY 
-        id
-        ,gl_line
-        ,gl_rownum
+        SELECT 
+            id
+            ,gl_line->>'account' account
+            ,(gl_line->>'amount')::numeric amount
+            ,gl_rownum
+            --aggregate all the path references back to the gl line
+            ,public.jsonb_concat(bpr_extract) bprkeys
+        FROM 
+            full_ex
+        GROUP BY 
+            id
+            ,gl_line
+            ,gl_rownum
     )
     --select * from ex_gl_line
+    ,upsert_acct_mast AS (
+        INSERT INTO
+            evt.acct (acct,prop)
+        SELECT DISTINCT
+            account
+            ,'{}'::jsonb prop
+        FROM
+            ex_gl_line
+        RETURNING *
+    )
     INSERT INTO
-        evt.gl (bprid,account, amount,glline, bprkeys)
+        evt.gl (bprid,acct, amount,glline, bprkeys)
     SELECT
         id
         ,account
@@ -106,7 +116,7 @@ CREATE FUNCTION log_insert() RETURNS trigger
     
 
 CREATE TRIGGER log_insert 
-    AFTER INSERT ON evt.log 
+    AFTER INSERT ON evt.bpr
     REFERENCING NEW TABLE AS ins 
     FOR EACH STATEMENT 
     EXECUTE PROCEDURE evt.log_insert();
