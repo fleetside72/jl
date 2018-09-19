@@ -1,6 +1,8 @@
 BEGIN TRANSACTION;
 --\conninfo
-drop schema evt cascade;
+DROP SCHEMA IF EXISTS evt cascade;
+DROP EXTENSION IF EXISTS ltree;
+CREATE EXTENSION ltree;
 --------------------------build schema----------------------------------------------
 
 CREATE SCHEMA evt;
@@ -27,6 +29,12 @@ CREATE TABLE evt.acct (
 );
 COMMENT ON COLUMN evt.acct.acct IS 'account';
 COMMENT ON COLUMN evt.acct.prop IS 'properties';
+
+------------------------fiscal periods------------------------
+CREATE TABLE evt.fspr (
+    id ltree
+    ,dur tstzrange
+);
 
 --------------------------relational ledger------------------------------------------
 
