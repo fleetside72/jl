@@ -98,6 +98,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
             ,'{}'::jsonb prop
         FROM
             ex_gl_line
+        ON CONFLICT DO NOTHING
         RETURNING *
     )
     INSERT INTO
