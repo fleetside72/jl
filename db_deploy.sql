@@ -1,8 +1,11 @@
 BEGIN TRANSACTION;
 --\conninfo
-drop schema evt cascade;
+
 --------------------------build schema----------------------------------------------
 
+DROP EXTENSTION IF EXISTS ltree;
+CREATE EXTENSTION ltree;
+DROP SCHEMA IF EXISTS evt cascade;
 CREATE SCHEMA evt;
 COMMENT ON SCHEMA evt IS 'event log';
 
@@ -27,6 +30,16 @@ CREATE TABLE evt.acct (
 );
 COMMENT ON COLUMN evt.acct.acct IS 'account';
 COMMENT ON COLUMN evt.acct.prop IS 'properties';
+
+------------------------fiscal periods------------------------
+CREATE TABLE evt.fspr (
+    id ltree
+    ,dur tstzrange
+)
+
+CREATE INDEX fspr_id ON evt.fspr USING GIST (id);
+COMMENT ON COLUMN evt.fspr.id IS 'fiscal period id';
+COMMENT ON COLUMN evt.fspr.dur IS 'fiscal period dutation in timestamp range';
 
 --------------------------relational ledger------------------------------------------
 
