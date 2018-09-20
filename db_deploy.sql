@@ -34,7 +34,12 @@ COMMENT ON COLUMN evt.acct.prop IS 'properties';
 CREATE TABLE evt.fspr (
     id ltree
     ,dur tstzrange
-);
+)
+
+COMMENT ON COLUMN evt.fspr.id IS 'fiscal period';
+COMMENT ON COLUMN evt.fspr.dur IS 'duration of period as timestamp range';
+
+CREATE INDEX id_gist ON evt.fspr USING GIST (id);
 
 --------------------------relational ledger------------------------------------------
 

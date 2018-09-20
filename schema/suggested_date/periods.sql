@@ -36,6 +36,6 @@ SELECT
     )::ltree t2
     ,tstzrange(gs.d,gs.d + '1 month'::interval) r
 FROM 
-    generate_series('2018-01-01 00:00'::timestamptz,'2099-12-01 00:00'::timestamptz,'1 month') gs(d)
+    generate_series('2018-01-01 00:00'::timestamptz,'2099-12-01 00:00'::timestamptz,'1 day') gs(d)
     INNER JOIN m ON
         m.cm = extract(month from gs.d)
