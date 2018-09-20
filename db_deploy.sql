@@ -1,10 +1,10 @@
 BEGIN TRANSACTION;
 --\conninfo
-DROP SCHEMA IF EXISTS evt cascade;
-DROP EXTENSION IF EXISTS ltree;
-CREATE EXTENSION ltree;
 --------------------------build schema----------------------------------------------
 
+DROP EXTENSTION IF EXISTS ltree;
+CREATE EXTENSTION ltree;
+DROP SCHEMA IF EXISTS evt cascade;
 CREATE SCHEMA evt;
 COMMENT ON SCHEMA evt IS 'event log';
 
