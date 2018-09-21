@@ -1,3 +1,4 @@
+---------------------------handle new logged event----------------------------------------
 
 CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     LANGUAGE plpgsql
@@ -5,7 +6,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     $func$
     BEGIN
     WITH
-    ------------------------------------full extraction-------------------------------------------
+    --full extraction
     full_ex AS (
         SELECT
             ins.id
@@ -29,7 +30,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
             LEFT JOIN LATERAL JSONB_ARRAY_ELEMENTS(ins.bpr#>ARRAY['gl','jpath',(a.rn - 1)::text]) WITH ORDINALITY p(i, rn) ON TRUE
     )
     --select * from full_ex
-    --------------------------------re-ggregate extraction to gl line level----------------------
+    --re-ggregate extraction to gl line level
     ,ex_gl_line AS (
         SELECT 
             id
@@ -58,18 +59,22 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
         RETURNING *
     )
     INSERT INTO
-        evt.gl (bprid,acct, amount,glline, bprkeys)
+        evt.gl (bprid,acct, amount,tstmp , fspr, glline, bprkeys)
     SELECT
-        id
-        ,account
-        ,amount
-        ,gl_rownum
-        ,bprkeys
+        e.id
+        ,e.account
+        ,e.amount
+        ,(e.bprkeys->>'date')::timestamptz
+        ,p.id
+        ,e.gl_rownum
+        ,e.bprkeys
     FROM 
-        ex_gl_line;
+        ex_gl_line e
+        LEFT OUTER JOIN evt.fspr p ON
+            p.dur @> (bprkeys->>'date')::timestamptz;
     RETURN NULL;
     END;
-    $func$
+    $func$;
     
 
 CREATE TRIGGER log_insert 

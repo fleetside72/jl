@@ -35,6 +35,7 @@ $${
         "entity": "home",
         "module": "MHI",
         "offset": "h.dcard",
-        "transaction": "purchase"
+        "transaction": "purchase",
+        "date": "2018-08-01"
     }
 }$$::jsonb bpr
