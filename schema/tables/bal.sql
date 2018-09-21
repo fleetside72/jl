@@ -1,8 +1,8 @@
 --------------------------balances----------------------------------------------------
 
 CREATE TABLE evt.bal (
-    acct TEXT REFERENCES evt.acct(acct)
-    ,perd daterange
+    acct ltree REFERENCES evt.acct(acct)
+    ,perd ltree
     ,obal numeric(12,2)
     ,debits numeric(12,2)
     ,credits numeric(12,2)

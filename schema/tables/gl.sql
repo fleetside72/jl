@@ -3,7 +3,7 @@
 CREATE TABLE evt.gl (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
     ,bprid INT REFERENCES evt.bpr (id)
-    ,acct text REFERENCES evt.acct (acct)
+    ,acct ltree REFERENCES evt.acct (acct)
     ,pstmp timestamptz DEFAULT CURRENT_TIMESTAMP
     --populates by trigger join to evt.fspr
     ,tstmp timestamptz

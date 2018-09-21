@@ -23,7 +23,7 @@ COMMENT ON COLUMN evt.bpr.stmp IS 'insert time';
 
 --the account master should be dynamically created
 CREATE TABLE evt.acct (
-    acct text PRIMARY KEY
+    acct ltree PRIMARY KEY
     ,prop jsonb
 );
 COMMENT ON COLUMN evt.acct.acct IS 'account';
@@ -45,7 +45,7 @@ CREATE INDEX id_gist ON evt.fspr USING GIST (id);
 CREATE TABLE evt.gl (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
     ,bprid INT REFERENCES evt.bpr (id)
-    ,acct text REFERENCES evt.acct (acct)
+    ,acct ltree REFERENCES evt.acct (acct)
     ,pstmp timestamptz DEFAULT CURRENT_TIMESTAMP
     --populates by trigger join to evt.fspr
     ,tstmp timestamptz
@@ -67,8 +67,8 @@ COMMENT ON COLUMN evt.gl.bprkeys IS 'extract from initial basic pecuniary record
 --------------------------balances----------------------------------------------------
 
 CREATE TABLE evt.bal (
-    acct TEXT REFERENCES evt.acct(acct)
-    ,perd daterange
+    acct ltree REFERENCES evt.acct(acct)
+    ,perd ltree
     ,obal numeric(12,2)
     ,debits numeric(12,2)
     ,credits numeric(12,2)
