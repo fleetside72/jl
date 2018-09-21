@@ -2,10 +2,9 @@ BEGIN TRANSACTION;
 --\conninfo
 --------------------------build schema----------------------------------------------
 
-DROP EXTENSTION IF EXISTS ltree;
-CREATE EXTENSTION ltree;
 DROP SCHEMA IF EXISTS evt cascade;
 CREATE SCHEMA evt;
+CREATE EXTENSION IF NOT EXISTS ltree;
 COMMENT ON SCHEMA evt IS 'event log';
 
 --------------------------event log table-------------------------------------------
@@ -34,7 +33,7 @@ COMMENT ON COLUMN evt.acct.prop IS 'properties';
 CREATE TABLE evt.fspr (
     id ltree
     ,dur tstzrange
-)
+);
 
 COMMENT ON COLUMN evt.fspr.id IS 'fiscal period';
 COMMENT ON COLUMN evt.fspr.dur IS 'duration of period as timestamp range';
