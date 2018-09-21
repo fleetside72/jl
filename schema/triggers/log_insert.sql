@@ -5,50 +5,6 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     $func$
     BEGIN
     WITH
-    /*
-    ins AS (
-        SELECT
-            1 id
-            ,$${
-    "gl": {
-        "lines": [
-            {
-                "amount": 2.19,
-                "account": "h.food"
-            },
-            {
-                "amount": -2.19,
-                "account": "h.dcard"
-            }
-        ],
-        "jpath": [
-            [
-                "{item,0}",
-                "{header}"
-            ],
-            [
-                "{item,0}",
-                "{header}"
-            ]
-        ]
-    },
-    "item": [
-        {
-            "item": "green olives",
-            "amount": 2.19,
-            "reason": "food",
-            "account": "h.food"
-        }
-    ],
-    "header": {
-        "entity": "home",
-        "module": "MHI",
-        "offset": "h.dcard",
-        "transaction": "purchase"
-    }
-}$$::jsonb bpr
-    ),
-    */
     ------------------------------------full extraction-------------------------------------------
     full_ex AS (
         SELECT
