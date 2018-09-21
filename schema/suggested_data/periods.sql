@@ -14,7 +14,7 @@ startm AS (
 )
 --select * from m
 INSERT INTO
-    evt.fspr
+    evt.fspr (id, dur)
 SELECT 
     --TO_CHAR(gs.d,'YYYY.MM.DD')::ltree t1
     (
