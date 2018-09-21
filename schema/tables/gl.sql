@@ -1,5 +1,5 @@
 --------------------------relational ledger------------------------------------------
-
+--DROP TABLE evt.gl
 CREATE TABLE evt.gl (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
     ,bprid INT REFERENCES evt.bpr (id)
@@ -7,7 +7,7 @@ CREATE TABLE evt.gl (
     ,pstmp timestamptz DEFAULT CURRENT_TIMESTAMP
     --populates by trigger join to evt.fspr
     ,tstmp timestamptz
-    ,fspr ltree REFERENCES evt.fspr (id)
+    ,fspr ltree NOT NULL REFERENCES evt.fspr (id)
     ,amount numeric (12,2)
     ,glline INT
     ,bprkeys JSONB
