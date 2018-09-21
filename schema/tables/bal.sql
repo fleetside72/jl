@@ -2,7 +2,7 @@
 
 CREATE TABLE evt.bal (
     acct ltree REFERENCES evt.acct(acct)
-    ,perd ltree
+    ,perd ltree REFERENCES evt.fspr(id)
     ,obal numeric(12,2)
     ,debits numeric(12,2)
     ,credits numeric(12,2)

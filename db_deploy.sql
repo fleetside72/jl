@@ -68,7 +68,7 @@ COMMENT ON COLUMN evt.gl.bprkeys IS 'extract from initial basic pecuniary record
 
 CREATE TABLE evt.bal (
     acct ltree REFERENCES evt.acct(acct)
-    ,perd ltree
+    ,perd ltree REFERENCES evt.fspr(id)
     ,obal numeric(12,2)
     ,debits numeric(12,2)
     ,credits numeric(12,2)
@@ -117,7 +117,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     ,ex_gl_line AS (
         SELECT 
             id
-            ,gl_line->>'account' account
+            ,(gl_line->>'account')::ltree account
             ,(gl_line->>'amount')::numeric amount
             ,gl_rownum
             --aggregate all the path references back to the gl line
@@ -144,15 +144,15 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     INSERT INTO
         evt.gl (bprid,acct, amount,tstmp , fspr, glline, bprkeys)
     SELECT
-        id
-        ,account
-        ,amount
-        ,(bprkeys->>'date')::timestamptz
-        ,p.fspr
-        ,gl_rownum
-        ,bprkeys
+        e.id
+        ,e.account
+        ,e.amount
+        ,(e.bprkeys->>'date')::timestamptz
+        ,p.id
+        ,e.gl_rownum
+        ,e.bprkeys
     FROM 
-        ex_gl_line
+        ex_gl_line e
         LEFT OUTER JOIN evt.fspr p ON
             p.dur @> (bprkeys->>'date')::timestamptz;
     RETURN NULL;
@@ -165,5 +165,3 @@ CREATE TRIGGER log_insert
     REFERENCING NEW TABLE AS ins 
     FOR EACH STATEMENT 
     EXECUTE PROCEDURE evt.log_insert();
-
-COMMIT;

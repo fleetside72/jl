@@ -34,7 +34,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     ,ex_gl_line AS (
         SELECT 
             id
-            ,gl_line->>'account' account
+            ,(gl_line->>'account')::ltree account
             ,(gl_line->>'amount')::numeric amount
             ,gl_rownum
             --aggregate all the path references back to the gl line
