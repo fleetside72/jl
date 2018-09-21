@@ -1,0 +1,41 @@
+insert into evt.bpr(bpr)
+ SELECT
+$${
+    "gl": {
+        "lines": [
+            {
+                "amount": 5.00,
+                "account": "h.maint.cars"
+            },
+            {
+                "amount": -5.00,
+                "account": "h.dcard"
+            }
+        ],
+        "jpath": [
+            [
+                "{item,0}",
+                "{header}"
+            ],
+            [
+                "{item,0}",
+                "{header}"
+            ]
+        ]
+    },
+    "item": [
+        {
+            "item": "light bulb",
+            "amount": 5.00,
+            "reason": "repair",
+            "account": "h.maint.cars"
+        }
+    ],
+    "header": {
+        "entity": "home",
+        "module": "MHI",
+        "offset": "h.dcard",
+        "transaction": "purchase",
+        "date": "2018-11-01"
+    }
+}$$::jsonb bpr
