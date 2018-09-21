@@ -31,14 +31,14 @@ COMMENT ON COLUMN evt.acct.prop IS 'properties';
 
 ------------------------fiscal periods------------------------
 CREATE TABLE evt.fspr (
-    id ltree
+    id ltree PRIMARY KEY
     ,dur tstzrange
 );
 
 COMMENT ON COLUMN evt.fspr.id IS 'fiscal period';
 COMMENT ON COLUMN evt.fspr.dur IS 'duration of period as timestamp range';
-
 CREATE INDEX id_gist ON evt.fspr USING GIST (id);
+
 
 --------------------------relational ledger------------------------------------------
 
@@ -46,6 +46,10 @@ CREATE TABLE evt.gl (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
     ,bprid INT REFERENCES evt.bpr (id)
     ,acct text REFERENCES evt.acct (acct)
+    ,pstmp timestamptz DEFAULT CURRENT_TIMESTAMP
+    --populates by trigger join to evt.fspr
+    ,tstmp timestamptz
+    ,fspr ltree REFERENCES evt.fspr (id)
     ,amount numeric (12,2)
     ,glline INT
     ,bprkeys JSONB
@@ -53,6 +57,9 @@ CREATE TABLE evt.gl (
 COMMENT ON COLUMN evt.gl.id IS 'gl id';
 COMMENT ON COLUMN evt.gl.bprid IS 'id of initial basic pecuniary record';
 COMMENT ON COLUMN evt.gl.acct IS 'account code';
+COMMENT ON COLUMN evt.gl.pstmp IS 'post time stamp';
+COMMENT ON COLUMN evt.gl.tstmp IS 'transaction time stamp';
+COMMENT ON COLUMN evt.gl.fspr IS 'fiscal period';
 COMMENT ON COLUMN evt.gl.amount IS 'amount';
 COMMENT ON COLUMN evt.gl.glline IS 'gl line number';
 COMMENT ON COLUMN evt.gl.bprkeys IS 'extract from initial basic pecuniary record';
@@ -74,7 +81,7 @@ COMMENT ON COLUMN evt.bal.debits IS 'total debits';
 COMMENT ON COLUMN evt.bal.credits IS 'total credits';
 COMMENT ON COLUMN evt.bal.cbal IS 'closing balance';
 
------------------------------------------process bpr insert trigger -----------------------------------
+---------------------------handle new logged event----------------------------------------
 
 CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     LANGUAGE plpgsql
@@ -82,7 +89,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     $func$
     BEGIN
     WITH
-    ------------------------------------full extraction-------------------------------------------
+    --full extraction
     full_ex AS (
         SELECT
             ins.id
@@ -106,7 +113,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
             LEFT JOIN LATERAL JSONB_ARRAY_ELEMENTS(ins.bpr#>ARRAY['gl','jpath',(a.rn - 1)::text]) WITH ORDINALITY p(i, rn) ON TRUE
     )
     --select * from full_ex
-    --------------------------------re-ggregate extraction to gl line level----------------------
+    --re-ggregate extraction to gl line level
     ,ex_gl_line AS (
         SELECT 
             id
@@ -135,15 +142,19 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
         RETURNING *
     )
     INSERT INTO
-        evt.gl (bprid,acct, amount,glline, bprkeys)
+        evt.gl (bprid,acct, amount,tstmp , fspr, glline, bprkeys)
     SELECT
         id
         ,account
         ,amount
+        ,(bprkeys->>'date')::timestamptz
+        ,p.fspr
         ,gl_rownum
         ,bprkeys
     FROM 
-        ex_gl_line;
+        ex_gl_line
+        LEFT OUTER JOIN evt.fspr p ON
+            p.dur @> (bprkeys->>'date')::timestamptz;
     RETURN NULL;
     END;
     $func$;
@@ -154,6 +165,5 @@ CREATE TRIGGER log_insert
     REFERENCING NEW TABLE AS ins 
     FOR EACH STATEMENT 
     EXECUTE PROCEDURE evt.log_insert();
-
 
 COMMIT;
