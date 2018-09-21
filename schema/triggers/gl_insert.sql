@@ -4,33 +4,41 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS 
     $func$
-    --upsert gl balance
-    --if a new period is created roll any gaps
-    WITH
-    agg AS (
+    BEGIN
+        WITH
+        agg AS (
+            SELECT
+                acct
+                ,fspr
+                ,coalesce(sum(amount) FILTER (WHERE amount > 0),0) debits
+                ,coalesce(sum(amount) FILTER (WHERE amount < 0),0) credits
+            FROM
+                ins
+            GROUP BY
+                acct
+                ,fspr
+        )
+        INSERT INTO
+            evt.bal
         SELECT
             acct
             ,fspr
-            ,sum(amount) FILTER (WHERE amount > 0) debits
-            ,sum(amount) FILTER (WHERE amount < 0) credits
+            ,0 obal
+            ,debits
+            ,credits
+            ,debits + credits
         FROM
-            ins
-        GROUP BY
-            acct
-            ,fspr
-    )
-    INSERT INTO
-        evt.bal
-    SELECT
-        acct
-        ,fspr
-        ,0
-        ,debits
-        ,credits
-        ,debits + credits
-    FROM
-        agg
-    ON CONFLICT ON CONSTRAINT PRIMARY KEY DO UPDATE SET
-        debits = debits + EXCLUDED.debits
-        ,credits = credits + EXCLUDED.credits
-        ,cbal = cbal + debits + credits
+            agg
+        ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+            debits = evt.bal.debits + EXCLUDED.debits
+            ,credits = evt.bal.credits + EXCLUDED.credits
+            ,cbal = evt.bal.cbal + EXCLUDED.debits + EXCLUDED.credits;
+        RETURN NULL;
+    END;
+    $func$;
+
+CREATE TRIGGER gl_insert 
+    AFTER INSERT ON evt.gl
+    REFERENCING NEW TABLE AS ins 
+    FOR EACH STATEMENT
+    EXECUTE PROCEDURE evt.gl_insert();
