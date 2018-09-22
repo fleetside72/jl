@@ -279,7 +279,7 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
             SELECT * FROM rf
         )
         INSERT INTO
-            evt.bal (acct, fspr, obal, debits, credits, cbal)
+            evt.balx (acct, fspr, obal, debits, credits, cbal)
         SELECT
             acct
             ,id
@@ -288,12 +288,7 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
             ,credits
             ,cbal
         FROM
-            seq
-        ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
-            obal = EXCLUDED.obal
-            ,debits = EXCLUDED.debits
-            ,credits = EXCLUDED.credits
-            ,cbal = EXCLUDED.cbal;
+            seq;
         RETURN NULL;
     END;
     $func$;
