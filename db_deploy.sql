@@ -193,40 +193,25 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                 acct
                 ,fspr
         )
-        INSERT INTO
-            evt.bal
-        SELECT
-            acct
-            ,fspr
-            ,0 obal
-            ,debits
-            ,credits
-            ,debits + credits
-        FROM
-            agg
-        ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
-            debits = evt.bal.debits + EXCLUDED.debits
-            ,credits = evt.bal.credits + EXCLUDED.credits
-            ,cbal = evt.bal.cbal + EXCLUDED.debits + EXCLUDED.credits;
-        RETURN NULL;
-    END;
-    $func$;
-
-CREATE TRIGGER gl_insert 
-    AFTER INSERT ON evt.gl
-    REFERENCING NEW TABLE AS ins 
-    FOR EACH STATEMENT
-    EXECUTE PROCEDURE evt.gl_insert();
-
----------------------------handle balance updates----------------------------------------
-
-CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
-    LANGUAGE plpgsql
-    AS 
-    $func$
-    BEGIN
-        WITH
-        seq AS (
+        ,ins AS (
+            INSERT INTO
+                evt.bal
+            SELECT
+                acct
+                ,fspr
+                ,0 obal
+                ,debits
+                ,credits
+                ,debits + credits
+            FROM
+                agg
+            ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+                debits = evt.bal.debits + EXCLUDED.debits
+                ,credits = evt.bal.credits + EXCLUDED.credits
+                ,cbal = evt.bal.cbal + EXCLUDED.debits + EXCLUDED.credits
+            RETURNING *
+        )
+        ,seq AS (
             WITH RECURSIVE rf (acct, fspr, minrange, maxrange, dur, id, obal, debits, credits, cbal) AS
             (
                 SELECT
@@ -313,8 +298,10 @@ CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
     END;
     $func$;
 
-CREATE TRIGGER bal_insert 
-    AFTER INSERT ON evt.bal
+CREATE TRIGGER gl_insert 
+    AFTER INSERT ON evt.gl
     REFERENCING NEW TABLE AS ins 
     FOR EACH STATEMENT
-    EXECUTE PROCEDURE evt.bal_insert();
+    EXECUTE PROCEDURE evt.gl_insert();
+
+COMMIT;
