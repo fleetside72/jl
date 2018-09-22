@@ -1,4 +1,4 @@
----------------------------handle new gl lines----------------------------------------
+---------------------------handle balance updates----------------------------------------
 
 CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
     LANGUAGE plpgsql
@@ -82,30 +82,22 @@ CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
             )
             SELECT * FROM rf
         )
-        select * from seq
-        ,xseq AS (
+        INSERT INTO
+            evt.bal (Acct, fspr, obal, debits, credits, cbal)
         SELECT
-            rng.*
-            ,fspr.id
-            ,row_number() OVER (partition by rng.acct, rng.fspr ORDER BY lower(fspr.dur) ASC) rn
-            ,coalesce(b.obal,0) obal
-            ,coalesce(b.debits,0) debits
-            ,coalesce(b.credits,0) credits
-            ,coalesce(b.cbal,0) cbal
+            acct
+            ,fspr
+            ,obal
+            ,debits
+            ,credits
+            ,cbal
         FROM
-            rng
-            INNER JOIN evt.fspr ON
-                lower(fspr.dur) >= minrange
-                AND lower(fspr.dur) <= maxrange
-            LEFT OUTER JOIN evt.bal b ON
-                b.acct = rng.acct
-                AND b.fspr = fspr.id
-        ORDER BY
-            rng.acct
-            ,rng.fspr
-            ,rn
-        )
-        select * from seq
+            seq
+        ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+            obal = EXCLUDED.obal
+            ,debits = EXCLUDED.debits
+            ,credits = EXCLUDED.credits
+            ,cbal = EXCLUDED.cbal;
         RETURN NULL;
     END;
     $func$;
