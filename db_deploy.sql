@@ -250,22 +250,13 @@ CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
                             ,CASE WHEN lower(f.dur) > max(lower(bp.dur)) THEN max(lower(bp.dur)) ELSE lower(f.dur) END minrange
                             ,CASE WHEN lower(f.dur) < max(lower(bp.dur)) THEN max(lower(bp.dur)) ELSE lower(f.dur) END maxrange
                         FROM
-                            (
-                                SELECT
-                                    *
-                                FROM
-                                    evt.bal
-                                WHERE
-                                    fspr = '2018.11'
-                            ) ins
+                            ins
                             INNER JOIN evt.fspr f ON
                                 f.id = ins.fspr
                             LEFT OUTER JOIN evt.bal b ON
                                 b.acct = ins.acct
                             LEFT OUTER JOIN evt.fspr bp ON
                                 bp.id = b.fspr
-                        WHERE
-                            b.fspr <> '2018.11'
                         GROUP BY
                             ins.acct
                             ,ins.fspr
@@ -303,10 +294,10 @@ CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
             SELECT * FROM rf
         )
         INSERT INTO
-            evt.bal (Acct, fspr, obal, debits, credits, cbal)
+            evt.bal (acct, fspr, obal, debits, credits, cbal)
         SELECT
             acct
-            ,fspr
+            ,id
             ,obal
             ,debits
             ,credits
