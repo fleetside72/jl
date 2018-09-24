@@ -5,18 +5,15 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
     AS 
     $func$
     DECLARE
-        _lastid ltree;
         _lastdur tstzrange;
         _newdur tstzrange;
     BEGIN
         
         --get last global rollforward
         SELECT
-            id
-            ,dur
+            dur
         INTO
-            _lastid
-            ,_lastdur
+            _lastdur
         FROM
             evt.fspr
         WHERE
