@@ -204,9 +204,9 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
         )
         ,list AS (
             SELECT 
-                acct
-                ,least(min(lower(dur)),min(lower(g.dur))) minp
-                ,greatest(max(lower(dur)),max(lower(g.dur))) maxp
+                b.acct
+                ,least(min(lower(f.dur)),min(lower(g.dur))) minp
+                ,greatest(max(lower(f.dur)),max(lower(g.dur))) maxp
             FROM
                 ins b
                 INNER JOIN evt.fspr f ON
@@ -214,9 +214,9 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                 LEFT OUTER JOIN evt.bal e ON
                     e.acct = b.acct
                 LEFT OUTER JOIN evt.fspr g ON
-                    g.fspr = e.id
+                    e.fspr = g.id
             GROUP BY
-                acct
+                b.acct
         )
         ,seq AS (
             WITH RECURSIVE rf (acct, minp, maxp, id, dur, obal, debits, credits, cbal) AS
