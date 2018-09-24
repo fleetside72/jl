@@ -70,16 +70,19 @@ minmax AS (
     ) 
     select * from rf
 )
+INSERT INTO
+    evt.bal
 SELECT
     acct
     ,id
-    ,dur
     ,obal
     ,debits
     ,credits
     ,cbal
 FROM 
-    bld 
-ORDER BY 
-    acct
-    ,id
+    bld
+ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+    obal = EXCLUDED.obal
+    ,debits = EXCLUDED.debits
+    ,credits = EXCLUDED.credits
+    ,cbal = EXCLUDED.cbal
