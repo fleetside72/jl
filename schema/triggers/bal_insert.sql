@@ -6,57 +6,47 @@ CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
     $func$
     BEGIN
         WITH
-        seq AS (
-            WITH RECURSIVE rf (acct, fspr, minrange, maxrange, dur, id, obal, debits, credits, cbal) AS
+        list AS (
+            SELECT 
+                acct
+                ,min(lower(dur)) minp
+                ,max(lower(dur)) maxp
+            FROM
+                ins b
+                INNER JOIN evt.fspr f ON
+                    f.id = b.fspr
+            GROUP BY
+                acct
+        )
+        ,seq AS (
+            WITH RECURSIVE rf (acct, minp, maxp, id, dur, obal, debits, credits, cbal) AS
             (
                 SELECT
-                    rng.acct
-                    ,rng.fspr
-                    ,rng.minrange
-                    ,rng.maxrange
-                    ,f.dur
+                    list.acct
+                    ,list.minp
+                    ,list.maxp
                     ,f.id
+                    ,f.dur
                     ,b.obal::numeric(12,2)
                     ,b.debits::numeric(12,2)
                     ,b.credits::numeric(12,2)
                     ,b.cbal::numeric(12,2)
                 FROM
-                    (
-                        --for each item determine if a gap exists between new an previous period (if any)
-                        SELECT
-                            ins.acct
-                            ,ins.fspr
-                            ,lower(f.dur) dur
-                            ,CASE WHEN lower(f.dur) > max(lower(bp.dur)) THEN max(lower(bp.dur)) ELSE lower(f.dur) END minrange
-                            ,CASE WHEN lower(f.dur) < max(lower(bp.dur)) THEN max(lower(bp.dur)) ELSE lower(f.dur) END maxrange
-                        FROM
-                            ins
-                            INNER JOIN evt.fspr f ON
-                                f.id = ins.fspr
-                            LEFT OUTER JOIN evt.bal b ON
-                                b.acct = ins.acct
-                            LEFT OUTER JOIN evt.fspr bp ON
-                                bp.id = b.fspr
-                        GROUP BY
-                            ins.acct
-                            ,ins.fspr
-                            ,f.dur
-                    ) rng
+                    list
                     INNER JOIN evt.fspr f ON
-                        lower(f.dur) = minrange
-                    INNER JOIN evt.bal b ON 
-                        b.acct = rng.acct
+                        lower(f.dur) = list.minp
+                    LEFT OUTER JOIN evt.bal b ON
+                        b.acct = list.acct
                         AND b.fspr = f.id
                 
                 UNION ALL
 
                 SELECT
                     rf.acct
-                    ,rf.fspr
-                    ,rf.minrange
-                    ,rf.maxrange
-                    ,f.dur
+                    ,rf.minp
+                    ,rf.maxp
                     ,f.id
+                    ,f.dur
                     ,COALESCE(rf.cbal,0)::numeric(12,2)
                     ,COALESCE(b.debits,0)::numeric(12,2)
                     ,COALESCE(b.credits,0)::numeric(12,2)
@@ -69,9 +59,9 @@ CREATE OR REPLACE FUNCTION evt.bal_insert() RETURNS trigger
                         b.acct = rf.acct
                         AND b.fspr = f.id
                 WHERE
-                    lower(f.dur) <= rf.maxrange
+                    lower(f.dur) <= rf.maxp
             )
-            SELECT * FROM rf
+            select * from rf
         )
         INSERT INTO
             evt.bal (acct, fspr, obal, debits, credits, cbal)
