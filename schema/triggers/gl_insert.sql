@@ -4,8 +4,50 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS 
     $func$
+    DECLARE
+        _lastid ltree;
+        _lastdur tstzrange;
+        _newdur tstzrange;
     BEGIN
+        
+        --get last global rollforward
+        SELECT
+            id
+            ,dur
+        INTO
+            _lastid
+            ,_lastdur
+        FROM
+            evt.fspr
+        WHERE
+            prop @> '{"rf":"global"}'::jsonb
+        WITH;
+
+        
         WITH
+        d AS (
+            SELECT DISTINCT fspr FROM ins
+        )
+        SELECT
+            max(f.dur)
+        INTO
+            _newdur
+        FROM
+            d
+            INNER JOIN evt.fspr f ON
+                f.id = d.id;
+
+        IF _newdur > _lastdur THEN
+            SELECT balrf(_lastdur, _newdur);
+            UPDATE 
+                tps.fspr
+            SET
+                prop = jsonb_set(prop,'{rf}','max')
+            WHERE
+                
+
+        END IF;
+
         agg AS (
             SELECT
                 acct
