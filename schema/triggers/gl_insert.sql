@@ -19,77 +19,62 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                 ,fspr
         )
         ,ins AS (
-            INSERT INTO
-                evt.bal
             SELECT
                 acct
                 ,fspr
-                ,0 obal
                 ,debits
                 ,credits
-                ,debits + credits
             FROM
                 agg
-            ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
-                debits = evt.bal.debits + EXCLUDED.debits
-                ,credits = evt.bal.credits + EXCLUDED.credits
-                ,cbal = evt.bal.cbal + EXCLUDED.debits + EXCLUDED.credits;
+        )
+        ,list AS (
+            SELECT 
+                acct
+                ,min(lower(dur)) minp
+                ,max(lower(dur)) maxp
+            FROM
+                ins b
+                INNER JOIN evt.fspr f ON
+                    f.id = b.fspr
+            GROUP BY
+                acct
         )
         ,seq AS (
-            WITH RECURSIVE rf (acct, fspr, minrange, maxrange, dur, id, obal, debits, credits, cbal) AS
+            WITH RECURSIVE rf (acct, minp, maxp, id, dur, obal, debits, credits, cbal) AS
             (
                 SELECT
-                    rng.acct
-                    ,rng.fspr
-                    ,rng.minrange
-                    ,rng.maxrange
-                    ,f.dur
+                    list.acct
+                    ,list.minp
+                    ,list.maxp
                     ,f.id
-                    ,b.obal::numeric(12,2)
-                    ,b.debits::numeric(12,2)
-                    ,b.credits::numeric(12,2)
-                    ,b.cbal::numeric(12,2)
+                    ,f.dur
+                    ,COALESCE(b.obal::numeric(12,2),0)
+                    ,COALESCE(b.debits::numeric(12,2),0) + COALESCE(ins.debits,0)
+                    ,COALESCE(b.credits::numeric(12,2),0) + COALESCE(ins.credits,0)
+                    ,COALESCE(b.cbal::numeric(12,2),0) + COALESCE(ins.debits,0) + COALESCE(ins.credits,0)
                 FROM
-                    (
-                        --for each item determine if a gap exists between new an previous period (if any)
-                        SELECT
-                            ins.acct
-                            ,ins.fspr
-                            ,lower(f.dur) dur
-                            ,CASE WHEN lower(f.dur) > max(lower(bp.dur)) THEN max(lower(bp.dur)) ELSE lower(f.dur) END minrange
-                            ,CASE WHEN lower(f.dur) < max(lower(bp.dur)) THEN max(lower(bp.dur)) ELSE lower(f.dur) END maxrange
-                        FROM
-                            ins
-                            INNER JOIN evt.fspr f ON
-                                f.id = ins.fspr
-                            LEFT OUTER JOIN evt.bal b ON
-                                b.acct = ins.acct
-                            LEFT OUTER JOIN evt.fspr bp ON
-                                bp.id = b.fspr
-                        GROUP BY
-                            ins.acct
-                            ,ins.fspr
-                            ,f.dur
-                    ) rng
+                    list
                     INNER JOIN evt.fspr f ON
-                        lower(f.dur) = minrange
-                    INNER JOIN evt.bal b ON 
-                        b.acct = rng.acct
+                        upper(f.dur) = list.minp
+                    LEFT OUTER JOIN evt.bal b ON
+                        b.acct = list.acct
                         AND b.fspr = f.id
+                    LEFT OUTER JOIN ins ON
+                        ins.acct = list.acct
+                        AND ins.fspr = f.id
                 
                 UNION ALL
 
                 SELECT
                     rf.acct
-                    ,rf.fspr
-                    ,rf.minrange
-                    ,rf.maxrange
-                    ,f.dur
+                    ,rf.minp
+                    ,rf.maxp
                     ,f.id
-                    ,COALESCE(rf.cbal,0)::numeric(12,2)
-                    ,COALESCE(b.debits,0)::numeric(12,2)
-                    ,COALESCE(b.credits,0)::numeric(12,2)
-                    ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2)
+                    ,f.dur
+                    ,COALESCE(rf.cbal,0)::numeric(12,2) 
+                    ,COALESCE(b.debits,0)::numeric(12,2) + COALESCE(ins.debits,0)
+                    ,COALESCE(b.credits,0)::numeric(12,2) + COALESCe(ins.credits,0)
+                    ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2) + COALESCE(ins.debits,0) + COALESCE(ins.credits,0)
                 FROM
                     rf
                     INNER JOIN evt.fspr f ON
@@ -97,10 +82,13 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                     LEFT OUTER JOIN evt.bal b ON
                         b.acct = rf.acct
                         AND b.fspr = f.id
+                    LEFT OUTER JOIN ins ON
+                        ins.acct = rf.acct
+                        AND ins.fspr = f.id
                 WHERE
-                    lower(f.dur) <= rf.maxrange
+                    lower(f.dur) <= rf.maxp
             )
-            SELECT * FROM rf
+            SELECT * FROM rf WHERE lower(dur) >= minp
         )
         INSERT INTO
             evt.bal (acct, fspr, obal, debits, credits, cbal)
