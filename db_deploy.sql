@@ -128,7 +128,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
             ,(gl_line->>'amount')::numeric amount
             ,gl_rownum
             --aggregate all the path references back to the gl line
-            ,public.jsonb_concat(bpr_extract) bprkeys
+            ,evt.jsonb_concat(bpr_extract) bprkeys
         FROM 
             full_ex
         GROUP BY 
@@ -294,5 +294,30 @@ CREATE TRIGGER gl_insert
     REFERENCING NEW TABLE AS ins 
     FOR EACH STATEMENT
     EXECUTE PROCEDURE evt.gl_insert();
+
+------------------------json concetenate aggregate-------------------------------------------
+
+CREATE OR REPLACE FUNCTION evt.jsonb_concat(
+	state jsonb,
+	concat jsonb)
+    RETURNS jsonb
+    LANGUAGE 'plpgsql'
+AS $BODY$
+
+BEGIN
+	--RAISE notice 'state is %', state;
+	--RAISE notice 'concat is %', concat;
+	RETURN state || concat;
+END;
+
+$BODY$;
+
+CREATE AGGREGATE evt.jsonb_concat(jsonb) (
+  SFUNC=evt.jsonb_concat,
+  STYPE=jsonb,
+  INITCOND='{}'
+);
+
+
 
 COMMIT;
