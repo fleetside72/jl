@@ -18,22 +18,13 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                 acct
                 ,fspr
         )
-        ,ins AS (
-            SELECT
-                acct
-                ,fspr
-                ,debits
-                ,credits
-            FROM
-                agg
-        )
         ,list AS (
             SELECT 
                 b.acct
                 ,least(min(lower(f.dur)),min(lower(g.dur))) minp
                 ,greatest(max(lower(f.dur)),max(lower(g.dur))) maxp
             FROM
-                ins b
+                agg b
                 INNER JOIN evt.fspr f ON
                     f.id = b.fspr
                 LEFT OUTER JOIN evt.bal e ON
@@ -53,9 +44,9 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                     ,f.id
                     ,f.dur
                     ,COALESCE(b.obal::numeric(12,2),0)
-                    ,COALESCE(b.debits::numeric(12,2),0) + COALESCE(ins.debits,0)
-                    ,COALESCE(b.credits::numeric(12,2),0) + COALESCE(ins.credits,0)
-                    ,COALESCE(b.cbal::numeric(12,2),0) + COALESCE(ins.debits,0) + COALESCE(ins.credits,0)
+                    ,COALESCE(b.debits::numeric(12,2),0) + COALESCE(agg.debits,0)
+                    ,COALESCE(b.credits::numeric(12,2),0) + COALESCE(agg.credits,0)
+                    ,COALESCE(b.cbal::numeric(12,2),0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
                 FROM
                     list
                     INNER JOIN evt.fspr f ON
@@ -63,9 +54,9 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                     LEFT OUTER JOIN evt.bal b ON
                         b.acct = list.acct
                         AND b.fspr = f.id
-                    LEFT OUTER JOIN ins ON
-                        ins.acct = list.acct
-                        AND ins.fspr = f.id
+                    LEFT OUTER JOIN agg ON
+                        agg.acct = list.acct
+                        AND agg.fspr = f.id
                 
                 UNION ALL
 
@@ -76,9 +67,9 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                     ,f.id
                     ,f.dur
                     ,COALESCE(rf.cbal,0)::numeric(12,2) 
-                    ,COALESCE(b.debits,0)::numeric(12,2) + COALESCE(ins.debits,0)
-                    ,COALESCE(b.credits,0)::numeric(12,2) + COALESCe(ins.credits,0)
-                    ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2) + COALESCE(ins.debits,0) + COALESCE(ins.credits,0)
+                    ,COALESCE(b.debits,0)::numeric(12,2) + COALESCE(agg.debits,0)
+                    ,COALESCE(b.credits,0)::numeric(12,2) + COALESCe(agg.credits,0)
+                    ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
                 FROM
                     rf
                     INNER JOIN evt.fspr f ON
@@ -86,9 +77,9 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
                     LEFT OUTER JOIN evt.bal b ON
                         b.acct = rf.acct
                         AND b.fspr = f.id
-                    LEFT OUTER JOIN ins ON
-                        ins.acct = rf.acct
-                        AND ins.fspr = f.id
+                    LEFT OUTER JOIN agg ON
+                        agg.acct = rf.acct
+                        AND agg.fspr = f.id
                 WHERE
                     lower(f.dur) <= rf.maxp
             )
@@ -116,6 +107,6 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
 
 CREATE TRIGGER gl_insert 
     AFTER INSERT ON evt.gl
-    REFERENCING NEW TABLE AS ins 
+    REFERENCING NEW TABLE AS ins
     FOR EACH STATEMENT
     EXECUTE PROCEDURE evt.gl_insert();
