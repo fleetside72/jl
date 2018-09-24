@@ -205,12 +205,16 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
         ,list AS (
             SELECT 
                 acct
-                ,min(lower(dur)) minp
-                ,max(lower(dur)) maxp
+                ,least(min(lower(dur)),min(lower(g.dur))) minp
+                ,greatest(max(lower(dur)),max(lower(g.dur))) maxp
             FROM
                 ins b
                 INNER JOIN evt.fspr f ON
                     f.id = b.fspr
+                LEFT OUTER JOIN evt.bal e ON
+                    e.acct = b.acct
+                LEFT OUTER JOIN evt.fspr g ON
+                    g.fspr = e.id
             GROUP BY
                 acct
         )
