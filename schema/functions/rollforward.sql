@@ -1,34 +1,25 @@
-CREATE FUNCTION evt.balrf(_mind tstzrange, _maxd tstzrange) RETURNS void AS
+--CREATE FUNCTION evt.balrf() RETURNS void AS
+DO
 $func$
 DECLARE
-    _lastdur tstzrange;
-    _newdur tstzrange;
+    _mind timestamptz;
+    _maxd timestamptz;
 BEGIN
     
-    --get last global rollforward
+    --get last accounts touched and last rollforward if available
     SELECT
-        dur
+        --get last rollforward, if none, use earliest period touched
+        COALESCE(
+            MAX(lower(dur)) FILTER (WHERE prop @> '{"rf":"global"}'::jsonb) 
+            ,MIN(lower(dur)) FILTER (WHERE prop @> '{"gltouch":"yes"}'::jsonb) 
+        ) maxd
+        --max period touched
+        ,MAX(lower(dur)) FILTER (WHERE prop @> '{"gltouch":"yes"}'::jsonb) maxd
     INTO
-        _lastdur
+        _mind
+        ,_maxd
     FROM
-        evt.fspr
-    WHERE
-        prop @> '{"rf":"global"}'::jsonb
-    WITH;
-
-    
-    WITH
-    d AS (
-        SELECT DISTINCT fspr FROM ins
-    )
-    SELECT
-        max(f.dur)
-    INTO
-        _newdur
-    FROM
-        d
-        INNER JOIN evt.fspr f ON
-            f.id = d.id;
+        evt.fspr;
             
     WITH
     --list each period in min and max
@@ -40,8 +31,8 @@ BEGIN
         FROM
             evt.fspr f
         WHERE
-            f.dur >= _mind
-            AND f.dur <= _maxd
+            lower(f.dur) >= _mind
+            AND lower(f.dur) <= _maxd
     )
     --get every account involved in target range
     ,arng AS (
@@ -53,13 +44,12 @@ BEGIN
                 prng.id = b.fspr
     )
     ,bld AS (
-        WITH RECURSIVE rf (acct, id, dur, propr, obal, debits, credits, cbal) AS
+        WITH RECURSIVE rf (acct, id, dur, obal, debits, credits, cbal) AS
         (
             SELECT
                 a.acct
                 ,f.id
                 ,f.dur
-                ,f.prop
                 ,COALESCE(b.obal,0)::numeric(12,2)
                 ,COALESCE(b.debits,0)::numeric(12,2)
                 ,COALESCE(b.credits,0)::numeric(12,2)
@@ -67,7 +57,7 @@ BEGIN
             FROM
                 arng a
                 INNER JOIN evt.fspr f ON
-                    lower(f.dur) = (SELECT mind FROM minmax)
+                    lower(f.dur) = _mind
                 LEFT OUTER JOIN evt.bal b ON
                     b.acct = a.acct
                     AND b.fspr = f.id
@@ -78,7 +68,6 @@ BEGIN
                 rf.acct
                 ,f.id
                 ,f.dur
-                ,f.prop
                 ,rf.cbal
                 ,COALESCE(b.debits,0)::numeric(12,2)
                 ,COALESCE(b.credits,0)::numeric(12,2)
@@ -91,7 +80,7 @@ BEGIN
                     b.acct = rf.acct
                     AND b.fspr = f.id
             WHERE
-                lower(f.dur) <= (SELECT maxd FROM minmax)
+                lower(f.dur) <= _maxd
         ) 
         select * from rf
     )
@@ -112,5 +101,4 @@ BEGIN
         ,credits = EXCLUDED.credits
         ,cbal = EXCLUDED.cbal;
 END;
-$func$
-LANGUAGE plpgsql
+$func$;
