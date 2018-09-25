@@ -1,4 +1,5 @@
---CREATE FUNCTION evt.balrf() RETURNS void AS
+CREATE FUNCTION evt.balrf() RETURNS void
+LANGUAGE plpgsql AS
 DO
 $func$
 DECLARE
@@ -12,7 +13,7 @@ BEGIN
         COALESCE(
             MAX(lower(dur)) FILTER (WHERE prop @> '{"rf":"global"}'::jsonb) 
             ,MIN(lower(dur)) FILTER (WHERE prop @> '{"gltouch":"yes"}'::jsonb) 
-        ) maxd
+        ) mind
         --max period touched
         ,MAX(lower(dur)) FILTER (WHERE prop @> '{"gltouch":"yes"}'::jsonb) maxd
     INTO
@@ -20,6 +21,11 @@ BEGIN
         ,_maxd
     FROM
         evt.fspr;
+
+    IF 
+        _maxd <= _mind
+        RETURN;
+    END IF
             
     WITH
     --list each period in min and max
