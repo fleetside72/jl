@@ -1,6 +1,35 @@
 CREATE FUNCTION evt.balrf(_mind tstzrange, _maxd tstzrange) RETURNS void AS
 $func$
+DECLARE
+    _lastdur tstzrange;
+    _newdur tstzrange;
 BEGIN
+    
+    --get last global rollforward
+    SELECT
+        dur
+    INTO
+        _lastdur
+    FROM
+        evt.fspr
+    WHERE
+        prop @> '{"rf":"global"}'::jsonb
+    WITH;
+
+    
+    WITH
+    d AS (
+        SELECT DISTINCT fspr FROM ins
+    )
+    SELECT
+        max(f.dur)
+    INTO
+        _newdur
+    FROM
+        d
+        INNER JOIN evt.fspr f ON
+            f.id = d.id;
+            
     WITH
     --list each period in min and max
     prng AS (

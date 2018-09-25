@@ -1,129 +1,98 @@
 ---------------------------handle new gl lines----------------------------------------
 
 CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
-    LANGUAGE plpgsql
-    AS 
-    $func$
-    DECLARE
-        _lastdur tstzrange;
-        _newdur tstzrange;
-    BEGIN
-        
-        --get last global rollforward
-        SELECT
-            dur
-        INTO
-            _lastdur
-        FROM
-            evt.fspr
-        WHERE
-            prop @> '{"rf":"global"}'::jsonb
-        WITH;
-
-        
-        WITH
-        d AS (
-            SELECT DISTINCT fspr FROM ins
-        )
-        SELECT
-            max(f.dur)
-        INTO
-            _newdur
-        FROM
-            d
-            INNER JOIN evt.fspr f ON
-                f.id = d.id;
-
-        IF _newdur > _lastdur THEN
-            SELECT balrf(_lastdur, _newdur);
-            UPDATE 
-                tps.fspr
-            SET
-                prop = jsonb_set(prop,'{rf}','max')
-            WHERE
-                
-
-        END IF;
-
-        agg AS (
-            SELECT
-                acct
-                ,fspr
-                ,coalesce(sum(amount) FILTER (WHERE amount > 0),0) debits
-                ,coalesce(sum(amount) FILTER (WHERE amount < 0),0) credits
-            FROM
-                ins
-            GROUP BY
-                acct
-                ,fspr
-        )
-        ,list AS (
-            SELECT 
-                b.acct
-                ,least(min(lower(f.dur)),min(lower(g.dur))) minp
-                ,greatest(max(lower(f.dur)),max(lower(g.dur))) maxp
-            FROM
-                agg b
-                INNER JOIN evt.fspr f ON
-                    f.id = b.fspr
-                LEFT OUTER JOIN evt.bal e ON
-                    e.acct = b.acct
-                LEFT OUTER JOIN evt.fspr g ON
-                    e.fspr = g.id
-            GROUP BY
-                b.acct
-        )
-        ,seq AS (
-            WITH RECURSIVE rf (acct, minp, maxp, id, dur, obal, debits, credits, cbal) AS
-            (
-                SELECT
-                    list.acct
-                    ,list.minp
-                    ,list.maxp
-                    ,f.id
-                    ,f.dur
-                    ,COALESCE(b.obal::numeric(12,2),0)
-                    ,COALESCE(b.debits::numeric(12,2),0) + COALESCE(agg.debits,0)
-                    ,COALESCE(b.credits::numeric(12,2),0) + COALESCE(agg.credits,0)
-                    ,COALESCE(b.cbal::numeric(12,2),0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
-                FROM
-                    list
-                    INNER JOIN evt.fspr f ON
-                        upper(f.dur) = list.minp
-                    LEFT OUTER JOIN evt.bal b ON
-                        b.acct = list.acct
-                        AND b.fspr = f.id
-                    LEFT OUTER JOIN agg ON
-                        agg.acct = list.acct
-                        AND agg.fspr = f.id
-                
-                UNION ALL
-
-                SELECT
-                    rf.acct
-                    ,rf.minp
-                    ,rf.maxp
-                    ,f.id
-                    ,f.dur
-                    ,COALESCE(rf.cbal,0)::numeric(12,2) 
-                    ,COALESCE(b.debits,0)::numeric(12,2) + COALESCE(agg.debits,0)
-                    ,COALESCE(b.credits,0)::numeric(12,2) + COALESCe(agg.credits,0)
-                    ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
-                FROM
-                    rf
-                    INNER JOIN evt.fspr f ON
-                        lower(f.dur) = upper(rf.dur)
-                    LEFT OUTER JOIN evt.bal b ON
-                        b.acct = rf.acct
-                        AND b.fspr = f.id
-                    LEFT OUTER JOIN agg ON
-                        agg.acct = rf.acct
-                        AND agg.fspr = f.id
-                WHERE
-                    lower(f.dur) <= rf.maxp
+LANGUAGE plpgsql
+AS 
+$func$
+DECLARE
+    _mind timestamptz;
+    _maxd timestamptz;
+BEGIN    
+    SELECT 
+        (SELECT min(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
+        ,GREATEST(
+            (SELECT max(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr),
+            COALESCE(
+                (SELECT max(lower(dur)) FROM evt.fspr WHERE prop @> '{"gltouch":"yes"}'),
+                (SELECT max(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
             )
-            SELECT * FROM rf WHERE lower(dur) >= minp
         )
+    INTO
+        _mind
+        ,_maxd;
+
+    WITH
+    agg AS (
+        SELECT
+            acct
+            ,fspr
+            ,dur
+            ,coalesce(sum(amount) FILTER (WHERE amount > 0),0) debits
+            ,coalesce(sum(amount) FILTER (WHERE amount < 0),0) credits
+        FROM
+            ins
+            INNER JOIN evt.fspr f ON
+                f.id = ins.fspr
+        GROUP BY
+            acct
+            ,fspr
+            ,dur
+    )
+    --get every account involved in target range
+    ,arng AS (
+        SELECT DISTINCT
+            acct
+        FROM
+            agg b
+    )
+    ,seq AS (
+        WITH RECURSIVE rf (acct, id, dur, obal, debits, credits, cbal) AS
+        (
+            SELECT
+                arng.acct
+                ,f.id
+                ,f.dur
+                ,COALESCE(b.obal::numeric(12,2),0)
+                ,COALESCE(b.debits::numeric(12,2),0) + COALESCE(agg.debits,0)
+                ,COALESCE(b.credits::numeric(12,2),0) + COALESCE(agg.credits,0)
+                ,COALESCE(b.cbal::numeric(12,2),0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
+            FROM
+                arng
+                INNER JOIN evt.fspr f ON
+                    upper(f.dur) = _mind
+                LEFT OUTER JOIN evt.bal b ON
+                    b.acct = arng.acct
+                    AND b.fspr = f.id
+                LEFT OUTER JOIN agg ON
+                    agg.acct = arng.acct
+                    AND agg.fspr = f.id
+            
+            UNION ALL
+
+            SELECT
+                rf.acct
+                ,f.id
+                ,f.dur
+                ,COALESCE(rf.cbal,0)::numeric(12,2) 
+                ,COALESCE(b.debits,0)::numeric(12,2) + COALESCE(agg.debits,0)
+                ,COALESCE(b.credits,0)::numeric(12,2) + COALESCe(agg.credits,0)
+                ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
+            FROM
+                rf
+                INNER JOIN evt.fspr f ON
+                    lower(f.dur) = upper(rf.dur)
+                LEFT OUTER JOIN evt.bal b ON
+                    b.acct = rf.acct
+                    AND b.fspr = f.id
+                LEFT OUTER JOIN agg ON
+                    agg.acct = rf.acct
+                    AND agg.fspr = f.id
+            WHERE
+                lower(f.dur) <= _maxd
+        )
+        SELECT * FROM rf WHERE lower(dur) >= _mind
+    )
+    ,bali AS (
         INSERT INTO
             evt.bal (acct, fspr, obal, debits, credits, cbal)
         SELECT
@@ -139,10 +108,27 @@ CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
             obal = EXCLUDED.obal
             ,debits = EXCLUDED.debits
             ,credits = EXCLUDED.credits
-            ,cbal = EXCLUDED.cbal;
-        RETURN NULL;
-    END;
-    $func$;
+            ,cbal = EXCLUDED.cbal
+            ,prop = evt.bal.prop || EXCLUDED.prop
+        RETURNING * 
+    )
+    ,n as (
+        SELECT DISTINCT
+            fspr
+        FROM
+            bali
+    )
+    UPDATE
+        evt.fspr f
+    SET
+        prop = COALESCE(f.prop,'{}'::JSONB) || '{"gltouch":"yes"}'::jsonb
+    FROM
+        n
+    WHERE
+        f.id = n.fspr;
+    RETURN NULL;
+END;
+$func$;
 
 CREATE TRIGGER gl_insert 
     AFTER INSERT ON evt.gl
