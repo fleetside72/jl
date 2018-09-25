@@ -84,21 +84,38 @@ BEGIN
         ) 
         select * from rf
     )
-    INSERT INTO
-        evt.bal
-    SELECT
-        acct
-        ,id
-        ,obal
-        ,debits
-        ,credits
-        ,cbal
-    FROM 
-        bld
-    ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
-        obal = EXCLUDED.obal
-        ,debits = EXCLUDED.debits
-        ,credits = EXCLUDED.credits
-        ,cbal = EXCLUDED.cbal;
+    ,ins AS (
+        INSERT INTO
+            evt.bal
+        SELECT
+            acct
+            ,id
+            ,obal
+            ,debits
+            ,credits
+            ,cbal
+        FROM 
+            bld
+        ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+            obal = EXCLUDED.obal
+            ,debits = EXCLUDED.debits
+            ,credits = EXCLUDED.credits
+            ,cbal = EXCLUDED.cbal
+        RETURNING *
+    )
+    ,touched AS (
+        SELECT DISTINCT
+            fspr
+        FROM
+            ins
+    )
+    UPDATE
+        evt.fspr f
+    SET
+        prop = f.prop || '{"rf":"global"}'::jsonb
+    FROM
+        touched t
+    WHERE
+        t.fspr = f.id;
 END;
 $func$;
