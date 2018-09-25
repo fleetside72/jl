@@ -116,7 +116,7 @@ BEGIN
     UPDATE
         evt.fspr f
     SET
-        prop = f.prop || '{"rf":"global"}'::jsonb
+        prop = COALESCE(f.prop,'{}'::jsonb) || '{"rf":"global"}'::jsonb
     FROM
         touched t
     WHERE
