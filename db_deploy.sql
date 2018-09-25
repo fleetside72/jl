@@ -301,6 +301,9 @@ BEGIN
         n
     WHERE
         f.id = n.fspr;
+
+    PERFORM evt.balrf();
+
     RETURN NULL;
 END;
 $func$;
