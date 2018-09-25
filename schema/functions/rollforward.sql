@@ -1,6 +1,5 @@
 CREATE FUNCTION evt.balrf() RETURNS void
 LANGUAGE plpgsql AS
-DO
 $func$
 DECLARE
     _mind timestamptz;
@@ -22,10 +21,9 @@ BEGIN
     FROM
         evt.fspr;
 
-    IF 
-        _maxd <= _mind
+    IF _maxd <= _mind THEN
         RETURN;
-    END IF
+    END IF;
             
     WITH
     --list each period in min and max
