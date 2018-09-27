@@ -8,9 +8,6 @@ DECLARE
     _mind timestamptz;
     _maxd timestamptz;
 BEGIN    
-    --find min and max applicable periods to roll
-    --min: earliest period involved in current gl posting
-    --max: latest period involved in any posting, or if none, the current posting
     SELECT 
         (SELECT min(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
         ,GREATEST(
@@ -30,9 +27,8 @@ BEGIN
             acct
             ,fspr
             ,dur
-            --put a negative in front to negate the initial debit/credit assignment
-            ,coalesce(-sum(amount) FILTER (WHERE amount > 0),0) debits
-            ,coalesce(-sum(amount) FILTER (WHERE amount < 0),0) credits
+            ,coalesce(sum(amount) FILTER (WHERE amount > 0),0) debits
+            ,coalesce(sum(amount) FILTER (WHERE amount < 0),0) credits
         FROM
             ins
             INNER JOIN evt.fspr f ON
