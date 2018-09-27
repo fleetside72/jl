@@ -30,9 +30,9 @@ BEGIN
             acct
             ,fspr
             ,dur
-            --put a negative in front to negate the initial debit/credit assignment
-            ,coalesce(-sum(amount) FILTER (WHERE amount > 0),0) debits
-            ,coalesce(-sum(amount) FILTER (WHERE amount < 0),0) credits
+            put a negative in front to negate the initial debit/credit assignment
+            ,coalesce(sum(amount) FILTER (WHERE amount > 0),0) debits
+            ,coalesce(sum(amount) FILTER (WHERE amount < 0),0) credits
         FROM
             ins
             INNER JOIN evt.fspr f ON
