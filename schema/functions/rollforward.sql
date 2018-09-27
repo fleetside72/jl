@@ -123,3 +123,5 @@ BEGIN
         t.fspr = f.id;
 END;
 $func$;
+
+COMMENT ON FUNCTION evt.balrf() IS 'close any gaps and ensure all accounts roll forward';

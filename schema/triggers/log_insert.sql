@@ -76,6 +76,7 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     END;
     $func$;
     
+COMMENT ON FUNCTION evt.log_insert IS 'add rows to relevant perspectives for new bpr';
 
 CREATE TRIGGER log_insert 
     AFTER INSERT ON evt.bpr
