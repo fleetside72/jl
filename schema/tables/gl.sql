@@ -2,7 +2,7 @@
 --DROP TABLE evt.gl
 CREATE TABLE evt.gl (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
-    ,bprid INT REFERENCES evt.bpr (id)
+    ,bprid INT REFERENCES evt.bpr (id) ON DELETE CASCADE
     ,acct ltree REFERENCES evt.acct (acct)
     ,pstmp timestamptz DEFAULT CURRENT_TIMESTAMP
     --populates by trigger join to evt.fspr

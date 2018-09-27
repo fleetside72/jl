@@ -137,7 +137,7 @@ $func$;
 COMMENT ON FUNCTION evt.gl_delete IS 'reduce evt.bal for deleted ledger rows';
 
 CREATE TRIGGER gl_delete 
-    AFTER INSERT ON evt.gl
+    AFTER DELETE ON evt.gl
     REFERENCING OLD TABLE AS ins
     FOR EACH STATEMENT
     EXECUTE PROCEDURE evt.gl_delete();
