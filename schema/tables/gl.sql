@@ -12,6 +12,7 @@ CREATE TABLE evt.gl (
     ,glline INT
     ,bprkeys JSONB
 );
+COMMENT ON TABLE evt.gl IS 'double entry bpr perspective';
 COMMENT ON COLUMN evt.gl.id IS 'gl id';
 COMMENT ON COLUMN evt.gl.bprid IS 'id of initial basic pecuniary record';
 COMMENT ON COLUMN evt.gl.acct IS 'account code';

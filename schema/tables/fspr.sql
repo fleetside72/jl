@@ -4,7 +4,7 @@ CREATE TABLE evt.fspr (
     ,dur tstzrange
     ,prop jsonb
 );
-
+COMMENT ON TABLE evt.fspr IS 'fiscal period definitions';
 COMMENT ON COLUMN evt.fspr.id IS 'fiscal period';
 COMMENT ON COLUMN evt.fspr.dur IS 'duration of period as timestamp range';
 COMMENT ON COLUMN evt.fspr.prop IS 'period properties';

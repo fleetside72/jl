@@ -10,6 +10,7 @@ CREATE TABLE evt.bal (
     ,prop jsonb
 );
 ALTER TABLE evt.bal ADD CONSTRAINT bal_pk PRIMARY KEY(acct,fspr);
+COMMENT ON TABLE evt.bal IS 'account balances by fiscal period';
 COMMENT ON COLUMN evt.bal.acct IS 'account';
 COMMENT ON COLUMN evt.bal.fspr IS 'period';
 COMMENT ON COLUMN evt.bal.obal IS 'opening balance';

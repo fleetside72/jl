@@ -15,6 +15,7 @@ CREATE TABLE evt.bpr (
     ,bprh JSONB
     ,stmp timestamptz
 );
+COMMENT ON TABLE evt.bpr IS 'log of events';
 COMMENT ON COLUMN evt.bpr.bpr IS 'basic pecuniary record';
 COMMENT ON COLUMN evt.bpr.bprh IS 'basic pecuniary record history';
 COMMENT ON COLUMN evt.bpr.stmp IS 'insert time';
@@ -26,6 +27,7 @@ CREATE TABLE evt.acct (
     acct ltree PRIMARY KEY
     ,prop jsonb
 );
+COMMENT ON TABLE evt.acct IS 'account master list';
 COMMENT ON COLUMN evt.acct.acct IS 'account';
 COMMENT ON COLUMN evt.acct.prop IS 'properties';
 
@@ -35,7 +37,7 @@ CREATE TABLE evt.fspr (
     ,dur tstzrange
     ,prop jsonb
 );
-
+COMMENT ON TABLE evt.fspr IS 'fiscal period definitions';
 COMMENT ON COLUMN evt.fspr.id IS 'fiscal period';
 COMMENT ON COLUMN evt.fspr.dur IS 'duration of period as timestamp range';
 COMMENT ON COLUMN evt.fspr.prop IS 'period properties';
@@ -57,6 +59,7 @@ CREATE TABLE evt.gl (
     ,glline INT
     ,bprkeys JSONB
 );
+COMMENT ON TABLE evt.gl IS 'double entry bpr perspective';
 COMMENT ON COLUMN evt.gl.id IS 'gl id';
 COMMENT ON COLUMN evt.gl.bprid IS 'id of initial basic pecuniary record';
 COMMENT ON COLUMN evt.gl.acct IS 'account code';
@@ -78,6 +81,7 @@ CREATE TABLE evt.bal (
     ,cbal numeric(12,2)
     ,prop jsonb
 );
+COMMENT ON TABLE evt.bal IS 'account balances by fiscal period';
 ALTER TABLE evt.bal ADD CONSTRAINT bal_pk PRIMARY KEY(acct,fspr);
 COMMENT ON COLUMN evt.bal.acct IS 'account';
 COMMENT ON COLUMN evt.bal.fspr IS 'period';
@@ -165,7 +169,8 @@ CREATE OR REPLACE FUNCTION evt.log_insert() RETURNS trigger
     RETURN NULL;
     END;
     $func$;
-    
+
+COMMENT ON FUNCTION evt.log_insert IS 'add rows to relevant perspectives for new bpr';
 
 CREATE TRIGGER log_insert 
     AFTER INSERT ON evt.bpr
@@ -308,6 +313,8 @@ BEGIN
 END;
 $func$;
 
+COMMENT ON FUNCTION evt.gl_insert IS 'update evt.bal with new ledger rows';
+
 CREATE TRIGGER gl_insert 
     AFTER INSERT ON evt.gl
     REFERENCING NEW TABLE AS ins
@@ -442,6 +449,8 @@ BEGIN
         t.fspr = f.id;
 END;
 $func$;
+
+COMMENT ON FUNCTION evt.balrf() IS 'close any gaps and ensure all accounts roll forward';
 
 ------------------------json concetenate aggregate-------------------------------------------
 

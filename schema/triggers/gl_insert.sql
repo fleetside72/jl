@@ -133,6 +133,8 @@ BEGIN
 END;
 $func$;
 
+COMMENT ON FUNCTION evt.gl_insert IS 'update evt.bal with new ledger rows';
+
 CREATE TRIGGER gl_insert 
     AFTER INSERT ON evt.gl
     REFERENCING NEW TABLE AS ins
