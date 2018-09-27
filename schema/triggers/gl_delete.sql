@@ -1,6 +1,6 @@
----------------------------handle new gl lines----------------------------------------
+---------------------------handle deleted gl lines----------------------------------------
 
-CREATE OR REPLACE FUNCTION evt.gl_insert() RETURNS trigger
+CREATE OR REPLACE FUNCTION evt.gl_delete() RETURNS trigger
 LANGUAGE plpgsql
 AS 
 $func$
@@ -27,8 +27,9 @@ BEGIN
             acct
             ,fspr
             ,dur
-            ,coalesce(sum(amount) FILTER (WHERE amount > 0),0) debits
-            ,coalesce(sum(amount) FILTER (WHERE amount < 0),0) credits
+            --negate initial debits credits
+            ,coalesce(-sum(amount) FILTER (WHERE amount > 0),0) debits
+            ,coalesce(-sum(amount) FILTER (WHERE amount < 0),0) credits
         FROM
             ins
             INNER JOIN evt.fspr f ON
@@ -133,10 +134,10 @@ BEGIN
 END;
 $func$;
 
-COMMENT ON FUNCTION evt.gl_insert IS 'update evt.bal with new ledger rows';
+COMMENT ON FUNCTION evt.gl_delete IS 'reduce evt.bal for deleted ledger rows';
 
-CREATE TRIGGER gl_insert 
+CREATE TRIGGER gl_delete 
     AFTER INSERT ON evt.gl
-    REFERENCING NEW TABLE AS ins
+    REFERENCING OLD TABLE AS ins
     FOR EACH STATEMENT
-    EXECUTE PROCEDURE evt.gl_insert();
+    EXECUTE PROCEDURE evt.gl_delete();
