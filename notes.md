@@ -5,8 +5,11 @@ roll-forward needs intercepted by some retained earnings logic
 tasks
 * a close-out to retained earning and consolidation process must happen before rolling into a new year, or opening balances need set to 0
     * test if rolling into a new year
-    * need to dynamically create a retained earnings account per trial balance if it does not exist
-    * need to dynamically determine temporary accounts if not specified
+        * copy the last period from evt.bal _after rolled_  `2018.12` and copy to `2018.close`
+        * close move temporary account balances to retained earnings
+            * need to dynamically create a retained earnings account per trial balance if it does not exist
+            * need to dynamically determine temporary accounts if not specified
+        * copy `2018.close` ending balances to `2019.01` opening balances and re-roll into the new year
     
 
 future
