@@ -14,3 +14,16 @@ tasks
 
 future
 * work on UI and web server for different kinds of entries
+
+accounts that need labeled
+* assets
+* liabilities
+* equity
+    * py re
+    * cy re
+    * oci
+    * cta
+    * apic (hold at acquisition rate)
+    * common stock (hold at acquisition rate)
+
+can label in properties or as part of heirarchy
