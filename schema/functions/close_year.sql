@@ -68,6 +68,7 @@ BEGIN
             AND re.prop @> '{"retained_earnings":"set"}'::jsonb
     WHERE
         fspr = _lastl
+        AND a.prop @> '{"func":"netinc"}'::jsonb
         --AND temp accounts only
     GROUP BY
         b.fspr

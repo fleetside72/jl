@@ -1,0 +1,1 @@
+update evt.acct set prop = '{"func":"netinc"}' where acct in ('h.food','h.maint.cars');
