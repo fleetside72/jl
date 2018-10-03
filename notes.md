@@ -1,4 +1,4 @@
-roll-forward needs intercepted by some retained earnings logic
+roll-forward needs intercepted by some retained earnings logici
 * top level period gets closed to retained earnings `subpath(id,0,1)`
 * top level account is a trial balance `subpath(acct,0,1)`
 
@@ -26,4 +26,10 @@ accounts that need labeled
     * apic (hold at acquisition rate)
     * common stock (hold at acquisition rate)
 
-can label in properties or as part of heirarchy
+how to assign
+* ~~as part of hierarchy~~
+* as a property
+
+when to assign
+* as required (notify at close that accounts labeled as earnings temporary will be closed to retained earnings)
+* any balance sheet offset accounts must be considered equity in order to print a coherent balance sheet
