@@ -72,7 +72,7 @@ BEGIN
                 a.acct
                 ,a.func
                 ,a.re
-                ,'' flag
+                ,null::boolean flag
                 ,f.id
                 ,f.dur
                 ,COALESCE(b.obal,0)::numeric(12,2)
@@ -90,29 +90,34 @@ BEGIN
             UNION ALL
 
             SELECT
-                CASE COALESCE(dc.flag,'')  WHEN 'clear' THEN rf.acct WHEN 'offset' THEN rf.re   ELSE rf.acct                                                END acct
+                --CASE COALESCE(dc.flag,'')  WHEN 'clear' THEN rf.acct WHEN 'offset' THEN rf.re   ELSE rf.acct                                                END acct
+                CASE dc.flag               WHEN true    THEN rf.acct WHEN false    THEN rf.re   ELSE rf.acct                                                END acct
                 ,rf.func
                 ,rf.re
-                ,COALESCE(dc.flag,'') flag
+                ,dc.flag flag
                 ,f.id
                 ,f.dur
-                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
-                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.debits                                              END::numeric(12,2) debits
-                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.credits                                             END::numeric(12,2) credits
-                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
+                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
+                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
+                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.debits                                              END::numeric(12,2) debits
+                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN 0       ELSE rf.debits + COALESCE(b.debits,0)                       END::numeric(12,2) debits
+                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.credits                                             END::numeric(12,2) credits
+                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN 0       ELSE rf.credits + COALESCE(b.credits,0)                     END::numeric(12,2) credits
+                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
+                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
                 --,(rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0))::NUMERIC(12,2)
             FROM
                 rf
                 INNER JOIN evt.fspr f ON
                     lower(f.dur) = upper(rf.dur)
-                LEFT OUTER JOIN (SELECT * FROM (VALUES ('clear'), ('offset')) X (flag)) dc ON
+                LEFT OUTER JOIN (SELECT * FROM (VALUES (true), (false)) X (flag)) dc ON
                     rf.func = 'netinc'
                     AND subpath(rf.id,0,1) <> subpath(f.id,0,1)
                 --this join needs to include any currently booked retained earnings
                 LEFT OUTER JOIN evt.bal b ON
-                    b.acct = CASE COALESCE(dc.flag,'') 
-                                WHEN 'clear' THEN rf.acct
-                                WHEN 'offset' THEN rf.re
+                    b.acct = CASE dc.flag
+                                WHEN true THEN rf.acct
+                                WHEN false THEN rf.re
                                 ELSE rf.acct 
                              END
                     AND b.fspr = f.id
