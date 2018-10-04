@@ -1,5 +1,4 @@
 CREATE OR REPLACE FUNCTION evt.closeyear(_year ltree) RETURNS TABLE (fspr ltree, acct ltree, cbal numeric(12,2)) LANGUAGE plpgsql AS
-DO
 $do$
 DECLARE
     _year ltree;
@@ -20,9 +19,9 @@ BEGIN
     WITH
     tb AS (
     SELECT DISTINCT
-        subpath(acct,0,1) tb
+        subpath(a.acct,0,1) tb
     FROM
-        evt.acct
+        evt.acct a
     )
     --associated or otherwise build a retained earnings account
     ,re AS (
@@ -46,15 +45,14 @@ BEGIN
         re
     ON CONFLICT DO NOTHING;
     
-    DROP TABLE IF EXISTS test;
-    CREATE TEMP TABLE test AS (
+    RETURN QUERY
     WITH
     dc AS (
         SELECT * FROM (VALUES (true), (false)) X (FLAG)
     )
     SELECT
         b.fspr
-        ,dc.flag
+        --,dc.flag
         ,CASE WHEN dc.flag THEN b.acct ELSE re.acct END acct
         ,sum(CASE WHEN dc.flag THEN -b.cbal ELSE b.cbal END) cbal 
     FROM
@@ -68,14 +66,13 @@ BEGIN
             b.acct <@ subpath(re.acct,0,1)
             AND re.prop @> '{"retained_earnings":"set"}'::jsonb
     WHERE
-        fspr = _lastl
+        b.fspr = _lastl
         AND a.prop @> '{"func":"netinc"}'::jsonb
         --AND temp accounts only
     GROUP BY
         b.fspr
         ,dc.flag
-        ,CASE WHEN dc.flag THEN b.acct ELSE re.acct END
-    ) with data;
+        ,CASE WHEN dc.flag THEN b.acct ELSE re.acct END;
         /*filter for tb?*/
 
     --carry new balances forward
@@ -87,4 +84,3 @@ BEGIN
     */
 END;
 $do$;
-SELECT * FROM TEST
