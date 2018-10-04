@@ -1,3 +1,4 @@
+CREATE OR REPLACE FUNCTION evt.closeyear(_year ltree) RETURNS TABLE (fspr ltree, acct ltree, cbal numeric(12,2)) LANGUAGE plpgsql AS
 DO
 $do$
 DECLARE
@@ -14,10 +15,8 @@ BEGIN
     SELECT id INTO _lastl FROM evt.fspr WHERE lower(dur) = _lastt;
     RAISE NOTICE 'last fsical period: %',_lastl;
 
-    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     --build retained earnings accounts everytime this function is called (bad idea?)
     --get list of tb's
-    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     WITH
     tb AS (
     SELECT DISTINCT
@@ -37,10 +36,7 @@ BEGIN
             subpath(a.acct,0,1) = tb.tb
             AND a.prop @> '{"retained_earnings":"set"}'::jsonb
     )
-
-    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     --re-insert all accounts and if they already exist do nothing
-    ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     INSERT INTO
         evt.acct
     SELECT
