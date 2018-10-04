@@ -90,36 +90,16 @@ BEGIN
             UNION ALL
 
             SELECT
-                CASE COALESCE(dc.flag,'') 
-                    WHEN 'clear' THEN rf.acct
-                    WHEN 'offset' THEN rf.re
-                    ELSE rf.acct 
-                END acct
+                CASE COALESCE(dc.flag,'')  WHEN 'clear' THEN rf.acct WHEN 'offset' THEN rf.re   ELSE rf.acct                                                END acct
                 ,rf.func
                 ,rf.re
                 ,COALESCE(dc.flag,'') flag
                 ,f.id
                 ,f.dur
-                ,CASE COALESCE(dc.flag,'') 
-                    WHEN 'clear' THEN 0
-                    WHEN 'offset' THEN rf.cbal
-                    ELSE rf.cbal 
-                END::numeric(12,2) obal
-                ,CASE COALESCE(dc.flag,'') 
-                    WHEN 'clear' THEN 0
-                    WHEN 'offset' THEN 0
-                    ELSE rf.debits
-                END::numeric(12,2) debits
-                ,CASE COALESCE(dc.flag,'') 
-                    WHEN 'clear' THEN 0
-                    WHEN 'offset' THEN 0
-                    ELSE rf.credits
-                END::numeric(12,2) credits
-                ,CASE COALESCE(dc.flag,'') 
-                    WHEN 'clear' THEN 0
-                    WHEN 'offset' THEN rf.cbal
-                    ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0)
-                END::numeric(12,2) cbal
+                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
+                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.debits                                              END::numeric(12,2) debits
+                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.credits                                             END::numeric(12,2) credits
+                ,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
                 --,(rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0))::NUMERIC(12,2)
             FROM
                 rf
