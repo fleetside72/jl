@@ -28,7 +28,6 @@ BEGIN
         RETURN;
     END IF;
             
-    CREATE TEMP TABLE r AS (
     WITH
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --list each period in min and max
@@ -52,6 +51,7 @@ BEGIN
             b.acct
             --if no retained earnings account exists then automitically create it (assuming no other account is called re)
             ,COALESCE(a.acct,subpath(b.acct,0,1)||'re'::ltree) re
+            ,a.acct existing_re
             ,x.prop->>'func' func
         FROM
             evt.bal b
@@ -62,6 +62,20 @@ BEGIN
             LEFT OUTER JOIN evt.acct a ON
                 subpath(a.acct,0,1) = subpath(b.acct,0,1)
                 AND a.prop @> '{"retained_earnings":"set"}'::jsonb
+    )
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --if the default retained earnings account was null, insert the new one to evt.acct
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,new_re AS (
+        INSERT INTO
+            evt.acct (acct, prop)
+        SELECT DISTINCT
+            re, '{"retained_earnings":"set"}'::jsonb
+        FROM
+            arng
+        WHERE
+            existing_re IS NULL
+        RETURNING *
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --cascade the balances
@@ -124,14 +138,28 @@ BEGIN
             WHERE
                 lower(f.dur) <= _maxd
         ) 
-        select acct, func, id, sum(obal) obal, sum(debits) debits, sum(credits) credits, sum(cbal) cbal FROM rf GROUP BY acct, func, id
+        SELECT 
+            acct
+            ,id
+            ,SUM(obal) obal
+            ,SUM(debits) debits
+            ,SUM(credits) credits
+            ,SUM(cbal) cbal 
+        FROM 
+            rf 
+        GROUP BY 
+            acct
+            ,func
+            ,id
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --upsert the cascaded balances
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,ins AS (
+    INSERT INTO
+        evt.bal
     SELECT
         acct
-        ,func
         ,id
         ,obal
         ,debits
@@ -139,9 +167,34 @@ BEGIN
         ,cbal
     FROM 
         bld
-    ) WITH DATA;
+    ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+        obal = EXCLUDED.obal
+        ,debits = EXCLUDED.debits
+        ,credits = EXCLUDED.credits
+        ,cbal = EXCLUDED.cbal
+    RETURNING *
+    )
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --determine all fiscal periods involved
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,touched AS (
+        SELECT DISTINCT
+            fspr
+        FROM
+            ins
+    )
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --update evt.fsor to reflect roll status
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    UPDATE
+        evt.fspr f
+    SET
+        prop = COALESCE(f.prop,'{}'::jsonb) || '{"rf":"global"}'::jsonb
+    FROM
+        touched t
+    WHERE
+        t.fspr = f.id;
   
 
 END;
 $func$;
-SELECT * FROM r order by id, acct
