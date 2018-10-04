@@ -1,3 +1,5 @@
+------------------------function that rolls balances forward-------------------------------------------
+
 CREATE FUNCTION evt.balrf() RETURNS void
 LANGUAGE plpgsql AS
 $func$
@@ -31,7 +33,6 @@ BEGIN
         RETURN;
     END IF;
             
-            
     WITH
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --list each period in min and max
@@ -52,20 +53,46 @@ BEGIN
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,arng AS (
         SELECT DISTINCT
-            acct
+            b.acct
+            --if no retained earnings account exists then automitically create it (assuming no other account is called re)
+            ,COALESCE(a.acct,subpath(b.acct,0,1)||'re'::ltree) re
+            ,a.acct existing_re
+            ,x.prop->>'func' func
         FROM
             evt.bal b
+            INNER JOIN evt.acct x ON
+                x.acct = b.acct
             INNER JOIN prng ON
                 prng.id = b.fspr
+            LEFT OUTER JOIN evt.acct a ON
+                subpath(a.acct,0,1) = subpath(b.acct,0,1)
+                AND a.prop @> '{"retained_earnings":"set"}'::jsonb
+    )
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --if the default retained earnings account was null, insert the new one to evt.acct
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,new_re AS (
+        INSERT INTO
+            evt.acct (acct, prop)
+        SELECT DISTINCT
+            re, '{"retained_earnings":"set"}'::jsonb
+        FROM
+            arng
+        WHERE
+            existing_re IS NULL
+        RETURNING *
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --cascade the balances
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,bld AS (
-        WITH RECURSIVE rf (acct, id, dur, obal, debits, credits, cbal) AS
+        WITH RECURSIVE rf (acct, func, re, flag, id, dur, obal, debits, credits, cbal) AS
         (
             SELECT
                 a.acct
+                ,a.func
+                ,a.re
+                ,null::boolean flag
                 ,f.id
                 ,f.dur
                 ,COALESCE(b.obal,0)::numeric(12,2)
@@ -83,46 +110,74 @@ BEGIN
             UNION ALL
 
             SELECT
-                rf.acct
+                --if the year is changing a duplicate join will happen which will allow moving balances to retained earnings
+                --the duplicate join happens only for accounts flagged as temporary and needing closed to retained earnings
+                --on the true side, the account retains its presence but takes on a zero balance
+                --on the false side, the account is swapped out for retained earngings accounts and take on the balance of the expense account
+                --if duplciate does not join itself, then treat as per anchor query above and continue aggregating balances for the target range
+                CASE dc.flag WHEN true THEN rf.acct  WHEN false THEN rf.re  ELSE rf.acct                                                 END acct
+                ,rf.func
+                ,rf.re
+                ,dc.flag flag
                 ,f.id
                 ,f.dur
-                ,rf.cbal
-                ,COALESCE(b.debits,0)::numeric(12,2)
-                ,COALESCE(b.credits,0)::numeric(12,2)
-                ,(rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0))::NUMERIC(12,2)
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE rf.debits + COALESCE(b.debits,0)                       END::numeric(12,2) debits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE rf.credits + COALESCE(b.credits,0)                     END::numeric(12,2) credits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
             FROM
                 rf
                 INNER JOIN evt.fspr f ON
                     lower(f.dur) = upper(rf.dur)
+                LEFT OUTER JOIN (SELECT * FROM (VALUES (true), (false)) X (flag)) dc ON
+                    rf.func = 'netinc'
+                    AND subpath(rf.id,0,1) <> subpath(f.id,0,1)
+                --this join needs to include any currently booked retained earnings
                 LEFT OUTER JOIN evt.bal b ON
-                    b.acct = rf.acct
+                    b.acct = CASE dc.flag
+                                WHEN true THEN rf.acct
+                                WHEN false THEN rf.re
+                                ELSE rf.acct 
+                             END
                     AND b.fspr = f.id
             WHERE
                 lower(f.dur) <= _maxd
         ) 
-        select * from rf
+        SELECT 
+            acct
+            ,id
+            ,SUM(obal) obal
+            ,SUM(debits) debits
+            ,SUM(credits) credits
+            ,SUM(cbal) cbal 
+        FROM 
+            rf 
+        GROUP BY 
+            acct
+            ,func
+            ,id
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --upsert the cascaded balances
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,ins AS (
-        INSERT INTO
-            evt.bal
-        SELECT
-            acct
-            ,id
-            ,obal
-            ,debits
-            ,credits
-            ,cbal
-        FROM 
-            bld
-        ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
-            obal = EXCLUDED.obal
-            ,debits = EXCLUDED.debits
-            ,credits = EXCLUDED.credits
-            ,cbal = EXCLUDED.cbal
-        RETURNING *
+    INSERT INTO
+        evt.bal
+    SELECT
+        acct
+        ,id
+        ,obal
+        ,debits
+        ,credits
+        ,cbal
+    FROM 
+        bld
+    ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
+        obal = EXCLUDED.obal
+        ,debits = EXCLUDED.debits
+        ,credits = EXCLUDED.credits
+        ,cbal = EXCLUDED.cbal
+    RETURNING *
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --determine all fiscal periods involved
@@ -144,22 +199,7 @@ BEGIN
         touched t
     WHERE
         t.fspr = f.id;
-
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --get periods to test if the year is changing
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    /*
-    SELECT id INTO _minp FROM evt.fspr WHERE lower(dur) = _mind;
-    SELECT id INTO _maxp FROM evt.fspr WHERE lower(dur) = _maxd;
-
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --if the top level item is greater for max than min then the year is changing
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    IF subpath(_maxp,0,1) > subpath(_minp,0,1) THEN
-        --get entry to close year
-        --SELECT * FROM evt.closeyear(_year)
-    END IF;
-    */
+  
 
 END;
 $func$;
