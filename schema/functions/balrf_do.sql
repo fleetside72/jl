@@ -50,7 +50,8 @@ BEGIN
     ,arng AS (
         SELECT DISTINCT
             b.acct
-            ,a.acct re
+            --if no retained earnings account exists then automitically create it (assuming no other account is called re)
+            ,COALESCE(a.acct,subpath(b.acct,0,1)||'re'::ltree) re
             ,x.prop->>'func' func
         FROM
             evt.bal b
