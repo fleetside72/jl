@@ -16,8 +16,8 @@ future
 * work on UI and web server for different kinds of entries
 
 accounts that need labeled
-* assets
-* liabilities
+* asset
+* liability
 * equity
     * py re
     * cy re
@@ -25,6 +25,7 @@ accounts that need labeled
     * cta
     * apic (hold at acquisition rate)
     * common stock (hold at acquisition rate)
+    * dividends
 
 how to assign
 * ~~as part of hierarchy~~
