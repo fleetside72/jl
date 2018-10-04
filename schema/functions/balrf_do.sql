@@ -139,13 +139,14 @@ BEGIN
             WHERE
                 lower(f.dur) <= _maxd
         ) 
-        select acct, id, sum(obal) obal, sum(debits) debits, sum(credits) credits, sum(cbal) cbal FROM rf GROUP BY acct, id
+        select acct, func, id, sum(obal) obal, sum(debits) debits, sum(credits) credits, sum(cbal) cbal FROM rf GROUP BY acct, func, id
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --upsert the cascaded balances
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     SELECT
         acct
+        ,func
         ,id
         ,obal
         ,debits
@@ -158,4 +159,4 @@ BEGIN
 
 END;
 $func$;
-SELECT * FROM r order by acct, id
+SELECT * FROM r order by id, acct
