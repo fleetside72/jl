@@ -90,22 +90,21 @@ BEGIN
             UNION ALL
 
             SELECT
-                --CASE COALESCE(dc.flag,'')  WHEN 'clear' THEN rf.acct WHEN 'offset' THEN rf.re   ELSE rf.acct                                                END acct
-                CASE dc.flag               WHEN true    THEN rf.acct WHEN false    THEN rf.re   ELSE rf.acct                                                END acct
+                --if the year is changing a duplicate join will happen which will allow moving balances to retained earnings
+                --the duplicate join happens only for accounts flagged as temporary and needing closed to retained earnings
+                --on the true side, the account retains its presence but takes on a zero balance
+                --on the false side, the account is swapped out for retained earngings accounts and take on the balance of the expense account
+                --if duplciate does not join itself, then treat as per anchor query above and continue aggregating balances for the target range
+                CASE dc.flag WHEN true THEN rf.acct  WHEN false THEN rf.re  ELSE rf.acct                                                 END acct
                 ,rf.func
                 ,rf.re
                 ,dc.flag flag
                 ,f.id
                 ,f.dur
-                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
-                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
-                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.debits                                              END::numeric(12,2) debits
-                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN 0       ELSE rf.debits + COALESCE(b.debits,0)                       END::numeric(12,2) debits
-                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN 0       ELSE rf.credits                                             END::numeric(12,2) credits
-                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN 0       ELSE rf.credits + COALESCE(b.credits,0)                     END::numeric(12,2) credits
-                --,CASE COALESCE(dc.flag,'') WHEN 'clear' THEN 0       WHEN 'offset' THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
-                ,CASE dc.flag              WHEN true    THEN 0       WHEN false    THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
-                --,(rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0))::NUMERIC(12,2)
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE rf.debits + COALESCE(b.debits,0)                       END::numeric(12,2) debits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE rf.credits + COALESCE(b.credits,0)                     END::numeric(12,2) credits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
             FROM
                 rf
                 INNER JOIN evt.fspr f ON
