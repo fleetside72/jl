@@ -8,7 +8,7 @@ DECLARE
     _maxp ltree;
 BEGIN
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --get last accounts touched and last rollforward if available
+    --get last periods touched and last rollforward if available
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     SELECT
         --get last rollforward, if none, use earliest period touched
