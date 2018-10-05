@@ -4,11 +4,11 @@ $${
     "gl": {
         "lines": [
             {
-                "amount": 5.00,
+                "amount": 10.00,
                 "account": "h.maint.cars"
             },
             {
-                "amount": -5.00,
+                "amount": -10.00,
                 "account": "h.dcard"
             }
         ],
@@ -26,7 +26,7 @@ $${
     "item": [
         {
             "item": "light bulb",
-            "amount": 5.00,
+            "amount": 10.00,
             "reason": "repair",
             "account": "h.maint.cars"
         }
@@ -36,6 +36,6 @@ $${
         "module": "MHI",
         "offset": "h.dcard",
         "transaction": "purchase",
-        "date": "2018-12-01"
+        "date": "2019-02-01"
     }
 }$$::jsonb bpr
