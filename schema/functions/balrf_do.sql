@@ -117,8 +117,8 @@ BEGIN
                 ,f.id
                 ,f.dur
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE rf.debits + COALESCE(b.debits,0)                       END::numeric(12,2) debits
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE rf.credits + COALESCE(b.credits,0)                     END::numeric(12,2) credits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE COALESCE(b.debits,0)                                   END::numeric(12,2) debits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE COALESCE(b.credits,0)                                  END::numeric(12,2) credits
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
             FROM
                 rf

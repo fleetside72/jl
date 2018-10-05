@@ -1,7 +1,4 @@
-------------------------function that rolls balances forward-------------------------------------------
-
-CREATE OR REPLACE FUNCTION evt.balrf() RETURNS void
-LANGUAGE plpgsql AS
+DO
 $func$
 DECLARE
     _mind timestamptz;
@@ -13,18 +10,16 @@ BEGIN
     --get last periods touched and last rollforward if available
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     SELECT
-        --get last rollforward, if none, use earliest period touched
-        COALESCE(
-            MAX(lower(dur)) FILTER (WHERE prop @> '{"rf":"global"}'::jsonb) 
-            ,MIN(lower(dur)) FILTER (WHERE prop @> '{"gltouch":"yes"}'::jsonb) 
-        ) mind
-        --max period touched
-        ,MAX(lower(dur)) FILTER (WHERE prop @> '{"gltouch":"yes"}'::jsonb) maxd
+        (SELECT lower(dur) FROM evt.fspr WHERE id = '2018.08'::ltree)
+        ,(SELECT lower(dur) FROM evt.fspr WHERE id = '2019.02'::ltree)
     INTO
         _mind
         ,_maxd
     FROM
         evt.fspr;
+
+    RAISE NOTICE 'earliest stamp%',_mind;
+    RAISE NOTICE 'latest stamp%',_maxd;
 
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --test if a roll forward is required
@@ -33,6 +28,7 @@ BEGIN
         RETURN;
     END IF;
             
+    CREATE TEMP TABLE balrf_do AS (
     WITH
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --list each period in min and max
@@ -122,8 +118,8 @@ BEGIN
                 ,f.id
                 ,f.dur
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal                                                END::numeric(12,2) obal
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE COALESCE(b.debits,0)                                   END::numeric(12,2) debits
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE COALESCE(b.credits,0)                                  END::numeric(12,2) credits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE COALESCE(b.debits,0)                       END::numeric(12,2) debits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0       ELSE COALESCE(b.credits,0)                     END::numeric(12,2) credits
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN rf.cbal ELSE rf.cbal + COALESCE(b.debits,0) + COALESCE(b.credits,0) END::numeric(12,2) cbal
             FROM
                 rf
@@ -154,14 +150,12 @@ BEGIN
             rf 
         GROUP BY 
             acct
+            ,func
             ,id
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     --upsert the cascaded balances
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    ,ins AS (
-    INSERT INTO
-        evt.bal
     SELECT
         acct
         ,id
@@ -171,36 +165,9 @@ BEGIN
         ,cbal
     FROM 
         bld
-    ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
-        obal = EXCLUDED.obal
-        ,debits = EXCLUDED.debits
-        ,credits = EXCLUDED.credits
-        ,cbal = EXCLUDED.cbal
-    RETURNING *
-    )
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --determine all fiscal periods involved
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    ,touched AS (
-        SELECT DISTINCT
-            fspr
-        FROM
-            ins
-    )
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --update evt.fsor to reflect roll status
-    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
-    UPDATE
-        evt.fspr f
-    SET
-        prop = COALESCE(f.prop,'{}'::jsonb) || '{"rf":"global"}'::jsonb
-    FROM
-        touched t
-    WHERE
-        t.fspr = f.id;
+    ) WITH DATA;
   
 
 END;
 $func$;
-
-COMMENT ON FUNCTION evt.balrf() IS 'close any gaps and ensure all accounts roll forward';
+SELECT * FROM balrf_do order by id, acct;

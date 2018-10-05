@@ -199,7 +199,9 @@ BEGIN
     SELECT 
         (SELECT min(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
         ,GREATEST(
+            --the last period inserted
             (SELECT max(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr),
+            --or the last period touched anywhere, or if null, the last period inserted to
             COALESCE(
                 (SELECT max(lower(dur)) FROM evt.fspr WHERE prop @> '{"gltouch":"yes"}'),
                 (SELECT max(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
@@ -208,6 +210,7 @@ BEGIN
     INTO
         _mind
         ,_maxd;
+
 
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     --aggregate all inserted gl transactions
@@ -230,7 +233,7 @@ BEGIN
             ,dur
     )
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --get every account involved in target range
+    --get every account touched in the transaction
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,arng AS (
         SELECT DISTINCT
@@ -266,7 +269,7 @@ BEGIN
     --roll the balances forward
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,bld AS (
-        WITH RECURSIVE rf (acct, func, re, flag, id, dur, obal, debits, credits, cbal) AS
+        WITH RECURSIVE rf (acct, func, re, flag, id, dur, obal, debits, credits, cbal, incr_re) AS
         (
             SELECT
                 a.acct
@@ -279,6 +282,7 @@ BEGIN
                 ,(COALESCE(b.debits,0) + COALESCE(agg.debits,0))::numeric(12,2)
                 ,(COALESCE(b.credits,0) + COALESCE(agg.credits,0))::numeric(12,2)
                 ,(COALESCE(b.cbal,0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0))::numeric(12,2)
+                ,CASE func WHEN 'netinc' THEN (COALESCE(agg.debits,0) + COALESCE(agg.credits,0))::numeric(12,2) ELSE 0 END incr_re
             FROM
                 arng a
                 INNER JOIN evt.fspr f ON
@@ -298,16 +302,21 @@ BEGIN
                 --on the true side, the account retains its presence but takes on a zero balance
                 --on the false side, the account is swapped out for retained earngings accounts and take on the balance of the expense account
                 --if duplciate does not join itself, then treat as per anchor query above and continue aggregating balances for the target range
-                CASE dc.flag WHEN true THEN rf.acct  WHEN false THEN rf.re  ELSE rf.acct                                                 END acct
+                CASE dc.flag WHEN true THEN rf.acct     WHEN false THEN rf.re                                       ELSE rf.acct                                                                                                               END acct
                 ,rf.func
                 ,rf.re
                 ,dc.flag
                 ,f.id
                 ,f.dur
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE COALESCE(rf.cbal,0)                                    END::numeric(12,2) obal
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0                   ELSE COALESCE(b.debits,0) + COALESCE(agg.debits,0)          END::numeric(12,2) debits
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0                   ELSE COALESCE(b.credits,0) + COALESCe(agg.credits,0)        END::numeric(12,2) credits
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE (COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0)) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0) END::numeric(12,2) cbal
+                --                                                   this column needs to pickup existing re
+                --if h.food is already in retained earnings and then you add in the entire re-rolled balance again it will be doubled up
+                --only the increment of the original transaction should be added to retained earnings
+                --the incremental retained earnings needs to survive even past the first dump to ret earn just in case a second year-end is encountered
+                ,CASE dc.flag WHEN true THEN 0          WHEN false THEN COALESCE(rf.incr_re,0) + COALESCE(b.obal,0) ELSE COALESCE(rf.cbal,0)                                                                                                   END::numeric(12,2) obal
+                ,CASE dc.flag WHEN true THEN 0          WHEN false THEN 0                                           ELSE COALESCE(b.debits,0) + COALESCE(agg.debits,0)                                                                         END::numeric(12,2) debits
+                ,CASE dc.flag WHEN true THEN 0          WHEN false THEN 0                                           ELSE COALESCE(b.credits,0) + COALESCe(agg.credits,0)                                                                       END::numeric(12,2) credits
+                ,CASE dc.flag WHEN true THEN 0          WHEN false THEN COALESCE(rf.incr_re,0) + COALESCE(b.obal,0) ELSE COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0) END::numeric(12,2) cbal
+                ,CASE dc.flag WHEN true THEN rf.incr_re WHEN false THEN COALESCE(rf.incr_re,0) + COALESCE(b.obal,0) ELSE COALESCE(rf.incr_re,0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)                                             END::numeric(12,2) incr_re
             FROM
                 rf
                 INNER JOIN evt.fspr f ON
@@ -343,7 +352,6 @@ BEGIN
             rf 
         GROUP BY 
             acct
-            ,func
             ,id
     )
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -366,7 +374,6 @@ BEGIN
             ,debits = EXCLUDED.debits
             ,credits = EXCLUDED.credits
             ,cbal = EXCLUDED.cbal
-            ,prop = evt.bal.prop || EXCLUDED.prop
         RETURNING * 
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -707,7 +714,6 @@ BEGIN
             rf 
         GROUP BY 
             acct
-            ,func
             ,id
     )
     -----------------------------------------------------------------------------------------------------------------------------------------------------------------
