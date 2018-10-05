@@ -121,7 +121,7 @@ BEGIN
                 ,dc.flag
                 ,f.id
                 ,f.dur
-                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE rf.cbal                                                END::numeric(12,2) obal
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE COALESCE(rf.cbal,0)                                    END::numeric(12,2) obal
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0                   ELSE COALESCE(b.debits,0) + COALESCE(agg.debits,0)          END::numeric(12,2) debits
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0                   ELSE COALESCE(b.credits,0) + COALESCe(agg.credits,0)        END::numeric(12,2) credits
                 ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE (COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0)) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0) END::numeric(12,2) cbal
@@ -203,9 +203,9 @@ BEGIN
     SET
         prop = COALESCE(f.prop,'{}'::JSONB) || '{"gltouch":"yes"}'::jsonb
     FROM
-        n
+        touched t
     WHERE
-        f.id = n.fspr;
+        f.id = t.fspr;
 
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     --this is to catch up all the other accounts if actually necessary
