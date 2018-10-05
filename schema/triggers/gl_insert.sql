@@ -55,7 +55,7 @@ BEGIN
             --if no retained earnings account exists then automitically create it (assuming no other account is called re)
             ,COALESCE(a.acct,subpath(b.acct,0,1)||'re'::ltree) re
             ,a.acct existing_re
-            x.prop->>'func' func
+            ,x.prop->>'func' func
         FROM
             agg b
             --account master
@@ -101,10 +101,10 @@ BEGIN
                 INNER JOIN evt.fspr f ON
                     upper(f.dur) = _mind
                 LEFT OUTER JOIN evt.bal b ON
-                    b.acct = arng.acct
+                    b.acct = a.acct
                     AND b.fspr = f.id
                 LEFT OUTER JOIN agg ON
-                    agg.acct = arng.acct
+                    agg.acct = a.acct
                     AND agg.fspr = f.id
             
             UNION ALL

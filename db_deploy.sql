@@ -191,6 +191,11 @@ DECLARE
     _mind timestamptz;
     _maxd timestamptz;
 BEGIN    
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --find min and max applicable periods to roll
+    --min: earliest period involved in current gl posting
+    --max: latest period involved in any posting, or if none, the current posting
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     SELECT 
         (SELECT min(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
         ,GREATEST(
@@ -204,6 +209,9 @@ BEGIN
         _mind
         ,_maxd;
 
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --aggregate all inserted gl transactions
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     WITH
     agg AS (
         SELECT
@@ -221,61 +229,127 @@ BEGIN
             ,fspr
             ,dur
     )
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     --get every account involved in target range
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,arng AS (
         SELECT DISTINCT
-            acct
+            b.acct
+            --if no retained earnings account exists then automitically create it (assuming no other account is called re)
+            ,COALESCE(a.acct,subpath(b.acct,0,1)||'re'::ltree) re
+            ,a.acct existing_re
+            ,x.prop->>'func' func
         FROM
             agg b
+            --account master
+            INNER JOIN evt.acct x ON
+                x.acct = b.acct
+            LEFT OUTER JOIN evt.acct a ON
+                subpath(a.acct,0,1) = subpath(b.acct,0,1)
+                AND a.prop @> '{"retained_earnings":"set"}'::jsonb
     )
-    ,seq AS (
-        WITH RECURSIVE rf (acct, id, dur, obal, debits, credits, cbal) AS
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --if the default retained earnings account was null, insert the new one to evt.acct
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,new_re AS (
+        INSERT INTO
+            evt.acct (acct, prop)
+        SELECT DISTINCT
+            re, '{"retained_earnings":"set"}'::jsonb
+        FROM
+            arng
+        WHERE
+            existing_re IS NULL
+        RETURNING *
+    )
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --roll the balances forward
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,bld AS (
+        WITH RECURSIVE rf (acct, func, re, flag, id, dur, obal, debits, credits, cbal) AS
         (
             SELECT
-                arng.acct
+                a.acct
+                ,a.func
+                ,a.re
+                ,null::BOOLEAN
                 ,f.id
                 ,f.dur
                 ,COALESCE(b.obal::numeric(12,2),0)
-                ,COALESCE(b.debits::numeric(12,2),0) + COALESCE(agg.debits,0)
-                ,COALESCE(b.credits::numeric(12,2),0) + COALESCE(agg.credits,0)
-                ,COALESCE(b.cbal::numeric(12,2),0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
+                ,(COALESCE(b.debits,0) + COALESCE(agg.debits,0))::numeric(12,2)
+                ,(COALESCE(b.credits,0) + COALESCE(agg.credits,0))::numeric(12,2)
+                ,(COALESCE(b.cbal,0) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0))::numeric(12,2)
             FROM
-                arng
+                arng a
                 INNER JOIN evt.fspr f ON
                     upper(f.dur) = _mind
                 LEFT OUTER JOIN evt.bal b ON
-                    b.acct = arng.acct
+                    b.acct = a.acct
                     AND b.fspr = f.id
                 LEFT OUTER JOIN agg ON
-                    agg.acct = arng.acct
+                    agg.acct = a.acct
                     AND agg.fspr = f.id
             
             UNION ALL
 
             SELECT
-                rf.acct
+                --if the year is changing a duplicate join will happen which will allow moving balances to retained earnings
+                --the duplicate join happens only for accounts flagged as temporary and needing closed to retained earnings
+                --on the true side, the account retains its presence but takes on a zero balance
+                --on the false side, the account is swapped out for retained earngings accounts and take on the balance of the expense account
+                --if duplciate does not join itself, then treat as per anchor query above and continue aggregating balances for the target range
+                CASE dc.flag WHEN true THEN rf.acct  WHEN false THEN rf.re  ELSE rf.acct                                                 END acct
+                ,rf.func
+                ,rf.re
+                ,dc.flag
                 ,f.id
                 ,f.dur
-                ,COALESCE(rf.cbal,0)::numeric(12,2) 
-                ,COALESCE(b.debits,0)::numeric(12,2) + COALESCE(agg.debits,0)
-                ,COALESCE(b.credits,0)::numeric(12,2) + COALESCe(agg.credits,0)
-                ,(COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0))::numeric(12,2) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0)
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE rf.cbal                                                END::numeric(12,2) obal
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0                   ELSE COALESCE(b.debits,0) + COALESCE(agg.debits,0)          END::numeric(12,2) debits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN 0                   ELSE COALESCE(b.credits,0) + COALESCe(agg.credits,0)        END::numeric(12,2) credits
+                ,CASE dc.flag WHEN true THEN 0       WHEN false THEN COALESCE(rf.cbal,0) ELSE (COALESCE(rf.cbal,0) + COALESCE(b.debits,0) + COALESCE(b.credits,0)) + COALESCE(agg.debits,0) + COALESCE(agg.credits,0) END::numeric(12,2) cbal
             FROM
                 rf
                 INNER JOIN evt.fspr f ON
                     lower(f.dur) = upper(rf.dur)
+                LEFT OUTER JOIN (SELECT * FROM (VALUES (true), (false)) X (flag)) dc ON
+                    rf.func = 'netinc'
+                    AND subpath(rf.id,0,1) <> subpath(f.id,0,1)
                 LEFT OUTER JOIN evt.bal b ON
-                    b.acct = rf.acct
+                    b.acct = CASE dc.flag
+                                WHEN true THEN rf.acct
+                                WHEN false THEN rf.re
+                                ELSE rf.acct 
+                             END
                     AND b.fspr = f.id
                 LEFT OUTER JOIN agg ON
-                    agg.acct = rf.acct
+                    agg.acct = CASE dc.flag
+                                WHEN true THEN rf.acct
+                                WHEN false THEN rf.re
+                                ELSE rf.acct 
+                             END
                     AND agg.fspr = f.id
             WHERE
                 lower(f.dur) <= _maxd
         )
-        SELECT * FROM rf WHERE lower(dur) >= _mind
+        SELECT 
+            acct
+            ,id
+            ,SUM(obal) obal
+            ,SUM(debits) debits
+            ,SUM(credits) credits
+            ,SUM(cbal) cbal 
+        FROM 
+            rf 
+        GROUP BY 
+            acct
+            ,func
+            ,id
     )
-    ,bali AS (
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --insert the balances
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,ins AS (
         INSERT INTO
             evt.bal (acct, fspr, obal, debits, credits, cbal)
         SELECT
@@ -286,7 +360,7 @@ BEGIN
             ,credits
             ,cbal
         FROM
-            seq
+            bld
         ON CONFLICT ON CONSTRAINT bal_pk DO UPDATE SET
             obal = EXCLUDED.obal
             ,debits = EXCLUDED.debits
@@ -295,12 +369,18 @@ BEGIN
             ,prop = evt.bal.prop || EXCLUDED.prop
         RETURNING * 
     )
-    ,n as (
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --determine all fiscal periods involved
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    ,touched as (
         SELECT DISTINCT
             fspr
         FROM
-            bali
+            ins
     )
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --update evt.fspr to reflect roll status
+    -----------------------------------------------------------------------------------------------------------------------------------------------------------------
     UPDATE
         evt.fspr f
     SET
@@ -310,6 +390,9 @@ BEGIN
     WHERE
         f.id = n.fspr;
 
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --this is to catch up all the other accounts if actually necessary
+    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     PERFORM evt.balrf();
 
     RETURN NULL;
