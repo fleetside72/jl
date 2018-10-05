@@ -16,7 +16,9 @@ BEGIN
     SELECT 
         (SELECT min(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
         ,GREATEST(
+            --the last period inserted
             (SELECT max(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr),
+            --or the last period touched anywhere, or if null, the last period inserted to
             COALESCE(
                 (SELECT max(lower(dur)) FROM evt.fspr WHERE prop @> '{"gltouch":"yes"}'),
                 (SELECT max(lower(f.dur)) FROM ins INNER JOIN evt.fspr f ON f.id = ins.fspr)
@@ -25,6 +27,7 @@ BEGIN
     INTO
         _mind
         ,_maxd;
+
 
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     --aggregate all inserted gl transactions
@@ -47,7 +50,7 @@ BEGIN
             ,dur
     )
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    --get every account involved in target range
+    --get every account touched in the transaction
     -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     ,arng AS (
         SELECT DISTINCT
