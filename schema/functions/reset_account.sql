@@ -1,3 +1,4 @@
+
 select
         g.id
         ,jp.j::text[]
@@ -13,3 +14,6 @@ from
                 b.bpr#>(jp.j::text[])->>'account' = g.acct::text
 where
         g.acct = 'h.maint.cars';
+
+
+select regexp_replace(bpr::text,'"account": "h.maint.cars"','"account": "h.cars"','g') from evt.bpr where bpr::text ~ '"account": "h.maint.cars"'
