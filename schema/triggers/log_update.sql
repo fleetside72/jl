@@ -63,7 +63,7 @@ CREATE OR REPLACE FUNCTION evt.log_update() RETURNS trigger
             ,(gl_line->>'amount')::numeric amount
             ,gl_rownum
             --aggregate all the path references back to the gl line
-            ,public.jsonb_concat(bpr_extract) bprkeys
+            ,evt.jsonb_concat(bpr_extract) bprkeys
         FROM 
             full_ex
         GROUP BY 
