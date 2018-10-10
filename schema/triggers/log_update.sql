@@ -101,7 +101,7 @@ CREATE OR REPLACE FUNCTION evt.log_update() RETURNS trigger
     END;
     $func$;
     
-COMMENT ON FUNCTION evt.log_update IS 'add rows to relevant perspectives for new bpr';
+COMMENT ON FUNCTION evt.log_update IS 'add rows to relevant perspectives for updated bpr';
 
 CREATE TRIGGER log_update 
     AFTER UPDATE ON evt.bpr
